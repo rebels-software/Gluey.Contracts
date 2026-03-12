@@ -90,6 +90,9 @@ internal static class ValidationErrorMessages
         Messages[(int)ValidationErrorCode.AnchorUnresolved] = "A $anchor target cannot be resolved.";
         Messages[(int)ValidationErrorCode.AnchorDuplicate] = "Duplicate $anchor declaration in the same schema resource.";
 
+        // Boolean schema
+        Messages[(int)ValidationErrorCode.FalseSchema] = "Schema is false; no value is valid.";
+
         // Structural errors
         Messages[(int)ValidationErrorCode.InvalidJson] = "JSON is structurally invalid.";
 

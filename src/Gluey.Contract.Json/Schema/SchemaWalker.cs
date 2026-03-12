@@ -162,8 +162,8 @@ internal ref struct SchemaWalker
                 // Boolean false: reject everything
                 _errors.Add(new ValidationError(
                     path,
-                    ValidationErrorCode.TypeMismatch,
-                    "Schema is false; no value is valid."));
+                    ValidationErrorCode.FalseSchema,
+                    ValidationErrorMessages.Get(ValidationErrorCode.FalseSchema)));
                 SkipCurrentValue();
                 return false;
             }
