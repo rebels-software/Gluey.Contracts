@@ -20,8 +20,8 @@ namespace Gluey.Contract;
 /// for validation errors. Supports both ordinal and string-based indexing.
 /// </summary>
 /// <remarks>
-/// ParseResult is the public-facing return type from <c>JsonContractSchema.TryParse</c>
-/// and <c>JsonContractSchema.Parse</c>. It ties together all parsed property data with
+/// ParseResult is the public-facing return type from <c>JsonContractSchema.Parse</c>.
+/// It ties together all parsed property data with
 /// any validation errors found during the single-pass walk.
 ///
 /// Both indexers return <see cref="ParsedProperty.Empty"/> for missing or out-of-range

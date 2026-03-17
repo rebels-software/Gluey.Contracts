@@ -22,7 +22,7 @@ using Gluey.Contract.Benchmarks.Payloads;
 namespace Gluey.Contract.Benchmarks.Scenarios;
 
 /// <summary>
-/// Benchmarks TryParse and validate-only paths against a complex schema exercising
+/// Benchmarks Parse and validate-only paths against a complex schema exercising
 /// allOf/anyOf, if/then/else, pattern, required, min/max constraints.
 /// Includes System.Text.Json baseline for comparison.
 /// </summary>

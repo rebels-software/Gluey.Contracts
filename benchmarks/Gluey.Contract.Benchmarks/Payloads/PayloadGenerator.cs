@@ -19,7 +19,7 @@ namespace Gluey.Contract.Benchmarks.Payloads;
 
 /// <summary>
 /// Generates valid JSON payloads at various sizes for benchmark scenarios.
-/// Each method produces a byte[] suitable for passing to JsonContractSchema.TryParse.
+/// Each method produces a byte[] suitable for passing to JsonContractSchema.Parse.
 /// </summary>
 public static class PayloadGenerator
 {

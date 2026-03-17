@@ -26,7 +26,7 @@ Replace `new int[1]` with `ArrayPool<int>.Shared.Rent(1)`. The rented array is r
 Already used `ArrayPool<ParsedProperty>.Shared.Rent()`. After pool warmup, allocation-free. No changes needed.
 
 ## Consequences
-- **Zero measured allocations** — BenchmarkDotNet reports 0B allocated for TryParse (small/medium) and ValidateOnly (all sizes).
+- **Zero measured allocations** — BenchmarkDotNet reports 0B allocated for Parse (small/medium) and ValidateOnly (all sizes).
 - **Thread safety** — `[ThreadStatic]` means each thread gets its own cached `ArrayBuffer`. No contention, no locks, but no cross-thread reuse.
 - **Memory retention** — The cached `ArrayBuffer` holds onto its rented arrays between calls. This is the intended tradeoff: retain ~1KB of pooled memory per thread to avoid allocation on every call.
 - **Dispose semantics** — `ArrayBuffer.Dispose()` attempts `Return()` first (cache for reuse). If the cache is occupied, falls back to `DisposeCore()` which returns arrays to the pool.
