@@ -92,4 +92,158 @@ public class JsonContractSchemaApiTests
         result.Should().NotBeNull();
         result!.Value.Dispose();
     }
+
+    // ── TryParse byte[] overload ─────────────────────────────────────
+
+    [Test]
+    public void TryParse_ByteArray_ValidInput_ReturnsTrue()
+    {
+        var schema = CreateSchema();
+        var data = SampleJsonBytes;
+
+        bool success = schema.TryParse(data, out var result);
+
+        success.Should().BeTrue();
+        result.IsValid.Should().BeTrue();
+        result["/name"].HasValue.Should().BeTrue();
+        result.Dispose();
+    }
+
+    [Test]
+    public void TryParse_ByteArray_InvalidInput_ReturnsFalse()
+    {
+        var schema = JsonContractSchema.Load("""{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}""")!;
+        var data = Encoding.UTF8.GetBytes("{}");
+
+        bool success = schema.TryParse(data, out var result);
+
+        success.Should().BeFalse();
+        result.IsValid.Should().BeFalse();
+        result.Dispose();
+    }
+
+    [Test]
+    public void TryParse_ByteArray_MalformedJson_ReturnsFalse()
+    {
+        var schema = CreateSchema();
+        var data = Encoding.UTF8.GetBytes("{bad json");
+
+        bool success = schema.TryParse(data, out var result);
+
+        success.Should().BeFalse();
+    }
+
+    [Test]
+    public void Parse_ByteArray_ValidInput_ReturnsResult()
+    {
+        var schema = CreateSchema();
+        var data = SampleJsonBytes;
+
+        var result = schema.Parse(data);
+
+        result.Should().NotBeNull();
+        result!.Value.IsValid.Should().BeTrue();
+        result.Value["/name"].HasValue.Should().BeTrue();
+        result.Value.Dispose();
+    }
+
+    [Test]
+    public void Parse_ByteArray_MalformedJson_ReturnsNull()
+    {
+        var schema = CreateSchema();
+        var data = Encoding.UTF8.GetBytes("{bad json");
+
+        var result = schema.Parse(data);
+
+        result.Should().BeNull();
+    }
+
+    [Test]
+    public void Parse_ByteArray_InvalidSchema_ReturnsResultWithErrors()
+    {
+        var schema = JsonContractSchema.Load("""{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}""")!;
+        var data = Encoding.UTF8.GetBytes("{}");
+
+        var result = schema.Parse(data);
+
+        result.Should().NotBeNull();
+        result!.Value.IsValid.Should().BeFalse();
+        result.Value.Errors.Count.Should().BeGreaterThan(0);
+        result.Value.Dispose();
+    }
+
+    // ── TryParse Span overload with malformed JSON ───────────────────
+
+    [Test]
+    public void TryParse_Span_MalformedJson_ReturnsFalse()
+    {
+        var schema = CreateSchema();
+        ReadOnlySpan<byte> data = Encoding.UTF8.GetBytes("{bad json");
+
+        bool success = schema.TryParse(data, out var result);
+
+        success.Should().BeFalse();
+    }
+
+    [Test]
+    public void Parse_Span_MalformedJson_ReturnsNull()
+    {
+        var schema = CreateSchema();
+        ReadOnlySpan<byte> data = Encoding.UTF8.GetBytes("{bad json");
+
+        var result = schema.Parse(data);
+
+        result.Should().BeNull();
+    }
+
+    // ── TryLoad with SchemaOptions ──────────────────────────────────
+
+    [Test]
+    public void TryLoad_WithAssertFormat_SetsFlag()
+    {
+        var options = new SchemaOptions { AssertFormat = true };
+        var success = JsonContractSchema.TryLoad("""{"type":"string","format":"email"}""", out var schema, options: options);
+
+        success.Should().BeTrue();
+        schema!.AssertFormat.Should().BeTrue();
+    }
+
+    [Test]
+    public void TryLoad_WithoutOptions_AssertFormatIsFalse()
+    {
+        var success = JsonContractSchema.TryLoad("""{"type":"string","format":"email"}""", out var schema);
+
+        success.Should().BeTrue();
+        schema!.AssertFormat.Should().BeFalse();
+    }
+
+    // ── Load string overload ────────────────────────────────────────
+
+    [Test]
+    public void Load_FromString_InvalidJson_ReturnsNull()
+    {
+        var result = JsonContractSchema.Load("not valid json");
+
+        result.Should().BeNull();
+    }
+
+    [Test]
+    public void TryLoad_FromString_InvalidJson_ReturnsFalse()
+    {
+        var success = JsonContractSchema.TryLoad("not valid json", out var schema);
+
+        success.Should().BeFalse();
+        schema.Should().BeNull();
+    }
+
+    // ── PropertyCount ───────────────────────────────────────────────
+
+    [Test]
+    public void PropertyCount_EmptySchema_IsZero()
+    {
+        var schema = JsonContractSchema.Load("""{"type":"object"}""");
+
+        schema.Should().NotBeNull();
+        schema!.PropertyCount.Should().Be(0);
+    }
 }
