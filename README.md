@@ -4,7 +4,7 @@
 
 [![codecov](https://codecov.io/gh/rebels-software/gluey-contracts/graph/badge.svg)](https://codecov.io/gh/rebels-software/gluey-contracts)
 
-[![NuGet](https://img.shields.io/nuget/vpre/Gluey.Contract.svg)](https://www.nuget.org/packages/Gluey.Contract)
+[![NuGet](https://img.shields.io/nuget/v/Gluey.Contract.svg)](https://www.nuget.org/packages/Gluey.Contract)
 
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)
 
