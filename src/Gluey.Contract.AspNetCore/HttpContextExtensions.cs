@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-using Gluey.Contract.Json;
 using Microsoft.AspNetCore.Http;
 
 namespace Gluey.Contract.AspNetCore;
@@ -32,7 +31,7 @@ public static class HttpContextExtensions
     public static ParseResult? GetContractResult(this HttpContext context)
     {
         if (context.Items.TryGetValue("Contract:Body", out var bodyObj) && bodyObj is byte[] body
-            && context.Items.TryGetValue("Contract:Schema", out var schemaObj) && schemaObj is JsonContractSchema schema)
+            && context.Items.TryGetValue("Contract:Schema", out var schemaObj) && schemaObj is IContractSchema schema)
         {
             return schema.Parse(body);
         }

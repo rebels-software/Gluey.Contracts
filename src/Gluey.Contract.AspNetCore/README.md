@@ -9,9 +9,10 @@ ASP.NET Core integration for [Gluey.Contract](https://github.com/rebels-software
 
 ```sh
 dotnet add package Gluey.Contract.AspNetCore
+dotnet add package Gluey.Contract.Json  # or Gluey.Contract.Protobuf, etc.
 ```
 
-This automatically includes `Gluey.Contract.Json` and `Gluey.Contract` (core) as dependencies.
+`Gluey.Contract.AspNetCore` depends only on `Gluey.Contract` (core). You choose the format package separately — JSON Schema, Protobuf, or any other format that implements `IContractSchema`.
 
 ## Quick start
 

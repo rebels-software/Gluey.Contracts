@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-using Gluey.Contract.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 
@@ -29,9 +28,9 @@ public static class EndpointExtensions
     /// with a 400 response on failure.
     /// </summary>
     /// <param name="builder">The endpoint convention builder.</param>
-    /// <param name="schema">The compiled JSON Schema to validate against.</param>
+    /// <param name="schema">The compiled schema to validate against.</param>
     /// <returns>The builder for chaining.</returns>
-    public static TBuilder WithContractValidation<TBuilder>(this TBuilder builder, JsonContractSchema schema)
+    public static TBuilder WithContractValidation<TBuilder>(this TBuilder builder, IContractSchema schema)
         where TBuilder : IEndpointConventionBuilder
     {
         builder.AddEndpointFilter(new ContractValidationFilter(schema));
@@ -90,7 +89,7 @@ internal sealed class ContractErrorTransformMetadata
 internal sealed class NamedContractValidationFilter : IEndpointFilter
 {
     private readonly string _schemaName;
-    private JsonContractSchema? _cached;
+    private IContractSchema? _cached;
 
     internal NamedContractValidationFilter(string schemaName)
     {

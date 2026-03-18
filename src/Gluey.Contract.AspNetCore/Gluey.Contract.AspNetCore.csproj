@@ -34,7 +34,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Gluey.Contract\Gluey.Contract.csproj" />
-    <ProjectReference Include="..\Gluey.Contract.Json\Gluey.Contract.Json.csproj" />
   </ItemGroup>
 
   <ItemGroup>

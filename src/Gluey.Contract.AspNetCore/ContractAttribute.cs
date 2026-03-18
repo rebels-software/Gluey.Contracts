@@ -22,7 +22,7 @@ namespace Gluey.Contract.AspNetCore;
 public sealed class ContractAttribute : Attribute
 {
     /// <summary>
-    /// The schema identifier used to resolve the <see cref="Json.JsonContractSchema"/>
+    /// The schema identifier used to resolve the <see cref="IContractSchema"/>
     /// from the <see cref="ContractSchemaRegistry"/>.
     /// </summary>
     public string SchemaName { get; }

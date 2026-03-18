@@ -12,21 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-using Gluey.Contract.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Gluey.Contract.AspNetCore;
 
 /// <summary>
-/// Endpoint filter that validates the request body against a <see cref="JsonContractSchema"/>
+/// Endpoint filter that validates the request body against an <see cref="IContractSchema"/>
 /// before the handler executes. Short-circuits with a 400 response on validation failure.
 /// </summary>
 internal sealed class ContractValidationFilter : IEndpointFilter
 {
-    private readonly JsonContractSchema _schema;
+    private readonly IContractSchema _schema;
 
-    internal ContractValidationFilter(JsonContractSchema schema)
+    internal ContractValidationFilter(IContractSchema schema)
     {
         _schema = schema;
     }
@@ -68,8 +67,8 @@ internal sealed class ContractValidationFilter : IEndpointFilter
                 Errors = [new ContractValidationError
                 {
                     Path = "",
-                    Code = "InvalidJson",
-                    Message = "Request body is not valid JSON."
+                    Code = "InvalidData",
+                    Message = "Request body is structurally invalid."
                 }]
             }, statusCode: StatusCodes.Status400BadRequest);
         }

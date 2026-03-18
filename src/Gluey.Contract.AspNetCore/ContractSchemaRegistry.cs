@@ -13,40 +13,26 @@
 // limitations under the License.
 
 using System.Collections.Concurrent;
-using Gluey.Contract.Json;
 
 namespace Gluey.Contract.AspNetCore;
 
 /// <summary>
-/// Thread-safe registry of named <see cref="JsonContractSchema"/> instances.
+/// Thread-safe registry of named <see cref="IContractSchema"/> instances.
 /// Schemas are loaded once and cached for the application lifetime.
+/// Works with any format — JSON Schema, Protobuf, etc.
 /// </summary>
 public sealed class ContractSchemaRegistry
 {
-    private readonly ConcurrentDictionary<string, JsonContractSchema> _schemas = new();
+    private readonly ConcurrentDictionary<string, IContractSchema> _schemas = new();
 
     /// <summary>
     /// Registers a schema with the given name.
     /// </summary>
     /// <param name="name">The schema identifier.</param>
     /// <param name="schema">The compiled schema.</param>
-    public void Add(string name, JsonContractSchema schema)
+    public void Add(string name, IContractSchema schema)
     {
         _schemas[name] = schema;
-    }
-
-    /// <summary>
-    /// Registers a schema from a JSON string.
-    /// </summary>
-    /// <param name="name">The schema identifier.</param>
-    /// <param name="schemaJson">The JSON Schema document.</param>
-    /// <returns>The compiled <see cref="JsonContractSchema"/>, or <c>null</c> if invalid.</returns>
-    public JsonContractSchema? Add(string name, string schemaJson)
-    {
-        var schema = JsonContractSchema.Load(schemaJson);
-        if (schema is not null)
-            _schemas[name] = schema;
-        return schema;
     }
 
     /// <summary>
@@ -55,7 +41,7 @@ public sealed class ContractSchemaRegistry
     /// <param name="name">The schema identifier.</param>
     /// <param name="schema">The resolved schema, or <c>null</c>.</param>
     /// <returns><c>true</c> if found.</returns>
-    public bool TryGet(string name, out JsonContractSchema? schema)
+    public bool TryGet(string name, out IContractSchema? schema)
     {
         return _schemas.TryGetValue(name, out schema);
     }
@@ -63,7 +49,7 @@ public sealed class ContractSchemaRegistry
     /// <summary>
     /// Retrieves a schema by name. Throws <see cref="KeyNotFoundException"/> if not found.
     /// </summary>
-    public JsonContractSchema Get(string name)
+    public IContractSchema Get(string name)
     {
         if (_schemas.TryGetValue(name, out var schema))
             return schema;
