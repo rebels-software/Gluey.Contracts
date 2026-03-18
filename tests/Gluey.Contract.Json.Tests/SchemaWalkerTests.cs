@@ -1153,6 +1153,30 @@ public class SchemaWalkerTests
     }
 
     [Test]
+    public void Parse_OneOfArray_Valid()
+    {
+        var schema = LoadSchema("""{"oneOf":[{"type":"array","minItems":2},{"type":"array","maxItems":0}]}""");
+        var data = Utf8("""[1,2]""");
+
+        using var result = schema.Parse(data);
+
+        result.Should().NotBeNull();
+        result!.Value.IsValid.Should().BeTrue();
+    }
+
+    [Test]
+    public void Parse_OneOfArray_MultipleMatch()
+    {
+        var schema = LoadSchema("""{"oneOf":[{"type":"array","minItems":1},{"type":"array","maxItems":5}]}""");
+        var data = Utf8("""[1,2]""");
+
+        using var result = schema.Parse(data);
+
+        result.Should().NotBeNull();
+        result!.Value.IsValid.Should().BeFalse();
+    }
+
+    [Test]
     public void Parse_NotArray_Valid()
     {
         var schema = LoadSchema("""{"not":{"type":"array","minItems":5}}""");
