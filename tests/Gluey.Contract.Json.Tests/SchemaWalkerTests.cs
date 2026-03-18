@@ -1449,4 +1449,86 @@ public class SchemaWalkerTests
         result!.Value.IsValid.Should().BeFalse();
         result.Value.Errors.Count.Should().BeGreaterThanOrEqualTo(3);
     }
+
+    // ── Numeric constraint with unparseable decimal (lines 253-254) ────
+
+    [Test]
+    public void Parse_NumericConstraint_OverflowDecimal_SkipsConstraintCheck()
+    {
+        // 1e999 is valid JSON but exceeds decimal range, so TryParseDecimal returns false
+        // and ValidateNumericConstraints silently returns (no error, no crash)
+        var schema = LoadSchema("""{"type":"number","minimum":0}""");
+        var data = Utf8("1e999");
+
+        using var result = schema.Parse(data);
+
+        result.Should().NotBeNull();
+        result!.Value.IsValid.Should().BeTrue();
+    }
+
+    [Test]
+    public void Parse_NumericConstraint_OverflowDecimal_WithMaximum_SkipsConstraintCheck()
+    {
+        var schema = LoadSchema("""{"type":"number","maximum":100}""");
+        var data = Utf8("1e999");
+
+        using var result = schema.Parse(data);
+
+        result.Should().NotBeNull();
+        // No maximum violation reported because the value can't be parsed as decimal
+        result!.Value.IsValid.Should().BeTrue();
+    }
+
+    // ── Required on unknown properties via RequiredUtf8 (lines 388-395) ─
+
+    [Test]
+    public void Parse_RequiredWithoutProperties_Satisfied_ViaUtf8Path()
+    {
+        // Schema has required but no properties defined, so all properties are "unknown"
+        // and required tracking goes through the RequiredUtf8 path
+        var schema = LoadSchema("""{"type":"object","required":["x","y"]}""");
+        var data = Utf8("""{"x":1,"y":2}""");
+
+        using var result = schema.Parse(data);
+
+        result.Should().NotBeNull();
+        result!.Value.IsValid.Should().BeTrue();
+    }
+
+    [Test]
+    public void Parse_RequiredWithoutProperties_Missing_ViaUtf8Path()
+    {
+        var schema = LoadSchema("""{"type":"object","required":["x","y"]}""");
+        var data = Utf8("""{"x":1}""");
+
+        using var result = schema.Parse(data);
+
+        result.Should().NotBeNull();
+        result!.Value.IsValid.Should().BeFalse();
+    }
+
+    [Test]
+    public void Parse_RequiredWithPartialProperties_UnknownRequired_ViaUtf8Path()
+    {
+        // "a" is a known property, "b" is unknown but required — exercises RequiredUtf8
+        var schema = LoadSchema("""{"type":"object","properties":{"a":{"type":"integer"}},"required":["a","b"]}""");
+        var data = Utf8("""{"a":1,"b":2}""");
+
+        using var result = schema.Parse(data);
+
+        result.Should().NotBeNull();
+        result!.Value.IsValid.Should().BeTrue();
+    }
+
+    [Test]
+    public void Parse_RequiredWithPartialProperties_UnknownRequired_Missing()
+    {
+        var schema = LoadSchema("""{"type":"object","properties":{"a":{"type":"integer"}},"required":["a","b"]}""");
+        var data = Utf8("""{"a":1}""");
+
+        using var result = schema.Parse(data);
+
+        result.Should().NotBeNull();
+        result!.Value.IsValid.Should().BeFalse();
+    }
 }

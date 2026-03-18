@@ -82,47 +82,30 @@ For JSON, use standard JSON Schema:
 
 ### 2. Parse raw bytes — single pass, zero allocation
 
-Two API styles — choose what fits your codebase:
-
-#### TryParse — .NET-idiomatic
-
 ```csharp
 var schema = JsonContractSchema.Load(schemaJson);
 
-if (schema.TryParse(requestBytes, out var result))
-{
-    result["serialNumber"].GetString();        // reads from byte buffer
-    result["serialNumber"].Path;               // "/serialNumber"
-    result["device"]["name"].GetString();      // nested access
-    result["device"]["tags"][0].GetString();   // array access
-    result["device"]["tags"][0].Path;          // "/device/tags/0"
-    result.Dispose();
-}
-else
-{
-    // result.Errors → [{ Path: "/csr", Code: "RequiredMissing" }]
-    result.Dispose();
-}
-```
-
-#### Parse — returns nullable
-
-```csharp
-var result = schema.Parse(requestBytes);
+using var result = schema.Parse(requestBytes);
 
 if (result is { } parsed)
 {
-    if (!parsed.Errors.HasErrors)
+    if (parsed.IsValid)
     {
-        parsed["serialNumber"].GetString();
-        parsed["device"]["tags"][0].Path;  // "/device/tags/0"
+        parsed["serialNumber"].GetString();        // reads from byte buffer
+        parsed["serialNumber"].Path;               // "/serialNumber"
+        parsed["device"]["name"].GetString();      // nested access
+        parsed["device"]["tags"][0].GetString();   // array access
+        parsed["device"]["tags"][0].Path;          // "/device/tags/0"
     }
-    parsed.Dispose();
+    else
+    {
+        // parsed.Errors → [{ Path: "/csr", Code: "RequiredMissing" }]
+    }
 }
 // null → structurally invalid JSON
 ```
 
-Both share the same internal parsing logic. No objects were allocated. `ParsedProperty` is a `readonly struct` holding an offset and length into the original byte buffer. Values are materialized only when you call `GetString()`, `GetInt32()`, etc. `Dispose()` returns pooled buffers.
+No objects were allocated. `ParsedProperty` is a `readonly struct` holding an offset and length into the original byte buffer. Values are materialized only when you call `GetString()`, `GetInt32()`, etc. `using` returns pooled buffers automatically.
 
 ### 4. Validation errors with [RFC 6901](https://datatracker.ietf.org/doc/html/rfc6901) JSON Pointer paths
 
@@ -144,16 +127,16 @@ Both share the same internal parsing logic. No objects were allocated. `ParsedPr
 Measured with [BenchmarkDotNet](https://benchmarkdotnet.org/) on .NET 9.0. Flat object schema with 5 typed properties + `additionalProperties` + `required`.
 
 Three comparison points:
-- **Gluey TryParse** — single-pass: validate against schema + build offset table for property access.
+- **Gluey Parse** — single-pass: validate against schema + build offset table for property access.
 - **Gluey ValidateOnly** — single-pass: validate against schema only, no offset table.
 - **STJ + JsonSchema.Net** — two-pass: `JsonDocument.Parse()` then `JsonSchema.Evaluate()`. The standard .NET approach to JSON Schema validation.
 - **STJ Parse Only** — `JsonDocument.Parse()` alone (no validation). Baseline reference.
 
 | Method | Payload | Mean | Allocated |
 |--------|---------|-----:|----------:|
-| **Gluey TryParse** | Small (100B) | 876 ns | **0 B** |
-| **Gluey TryParse** | Medium (5KB) | 17,909 ns | **0 B** |
-| **Gluey TryParse** | Large (50KB) | 161,435 ns | **1 B** |
+| **Gluey Parse** | Small (100B) | 876 ns | **0 B** |
+| **Gluey Parse** | Medium (5KB) | 17,909 ns | **0 B** |
+| **Gluey Parse** | Large (50KB) | 161,435 ns | **1 B** |
 | **Gluey ValidateOnly** | Small (100B) | 699 ns | **0 B** |
 | **Gluey ValidateOnly** | Medium (5KB) | 18,375 ns | **0 B** |
 | **Gluey ValidateOnly** | Large (50KB) | 166,007 ns | **1 B** |

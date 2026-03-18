@@ -30,20 +30,23 @@ This automatically includes `Gluey.Contract` (core) as a dependency.
 }
 ```
 
-### TryParse
+### Parse
 
 ```csharp
-var schema = JsonContractSchema.FromFile("enrollment.schema.json");
+var schema = JsonContractSchema.Load(schemaJson);
 
-if (schema.TryParse(requestBytes, out ParsedData data, out ValidationError[] errors))
+using var result = schema.Parse(requestBytes);
+
+if (result is { } parsed && parsed.IsValid)
 {
-    data["serialNumber"].GetString();   // reads from byte buffer on demand
-    data["serialNumber"].Path;          // "/serialNumber"
+    parsed["serialNumber"].GetString();   // reads from byte buffer on demand
+    parsed["serialNumber"].Path;          // "/serialNumber"
 }
-else
+else if (result is { } invalid)
 {
-    // errors → [{ Path: "/csr", Code: "REQUIRED", Message: "CSR is required" }]
+    // invalid.Errors → [{ Path: "/csr", Code: "REQUIRED", Message: "CSR is required" }]
 }
+// null → structurally invalid JSON
 ```
 
 ### Result

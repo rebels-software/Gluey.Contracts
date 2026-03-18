@@ -7,7 +7,7 @@ The library targets minimal allocations on the hot parse/validate path.
 
 ## Known Allocations
 
-Per TryParse call, the following managed allocations occur:
+Per Parse call, the following managed allocations occur:
 
 | Source | Bytes (approx.) | Path | Notes |
 |--------|-----------------|------|-------|
@@ -52,7 +52,7 @@ can interfere with BenchmarkDotNet's process isolation. Alternatively, add
 | FullSchemaBenchmark | allOf, if/then/else, pattern, min/max | Full validation pipeline |
 
 Each scenario benchmarks three payload sizes (small ~100B, medium ~5KB, large ~50KB)
-across three methods: TryParse (byte[]), ValidateOnly (ReadOnlySpan), and STJ baseline.
+across three methods: Parse (byte[]), ValidateOnly (ReadOnlySpan), and STJ baseline.
 
 ## Allocation Regression Tests
 
@@ -60,7 +60,7 @@ CI enforces allocation budgets via NUnit tests in `tests/Gluey.Contract.Json.Tes
 
 | Test Class | Assertion |
 |-----------|-----------|
-| TryParseAllocationTests | byte[] path < 1024B, span path < 512B |
+| ParseAllocationTests | byte[] path < 1024B, span path < 512B |
 | PropertyAccessAllocationTests | Ordinal indexer = 0B, string indexer < 256B |
 | DisposeAllocationTests | Dispose = 0B, double-dispose = 0B |
 | FormatAssertionAllocationTests | Format assertion < 2000B |

@@ -1,7 +1,7 @@
 # Invariant 6: Parse Never Throws on Invalid Input
 
 ## Rule
-Neither `TryParse` nor `Parse` throw exceptions when input fails validation. `TryParse` returns `false` with errors. `Parse` returns a failed `Result`. Exceptions are reserved for programming errors only (null schema, disposed buffer).
+`Parse` never throws exceptions when input fails validation. It returns `null` for structurally invalid JSON, or a `ParseResult` with `IsValid == false` and collected errors for schema violations. Exceptions are reserved for programming errors only (null schema, disposed buffer).
 
 ## Rationale
 The library validates untrusted external input. Invalid input is expected, not exceptional. Both API surfaces must be safe to use without try/catch for validation flows.

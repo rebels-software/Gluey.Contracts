@@ -1,42 +1,38 @@
-# ADR 4: Dual API Surface — TryParse and Result
+# ADR 4: Parse API Surface
 
 ## Status
-Accepted
+Accepted (updated — TryParse removed in favor of Parse-only)
 
 ## Context
-Validation failures are expected, not exceptional. However, as a standalone NuGet library, Gluey.Contract should not force consumers into a specific error-handling pattern. Some teams prefer `TryParse`, others prefer `Result<T>`, and imposing one style limits adoption.
+Validation failures are expected, not exceptional. The API should make correct usage obvious — in particular, `ParseResult` is `IDisposable` (it returns ArrayPool buffers), so the API must encourage `using` patterns.
 
 ## Decision
-Gluey.Contract exposes two API surfaces for parsing:
-
-### 1. TryParse — .NET-idiomatic, zero opinion
+Gluey.Contract exposes a single `Parse` method that returns `ParseResult?`:
 
 ```csharp
-if (schema.TryParse(bytes, out ParsedData data, out ValidationError[] errors))
+using var result = schema.Parse(data);
+
+if (result is { } parsed && parsed.IsValid)
 {
-    data["serial"].GetString();
+    parsed["serial"].GetString();
 }
 ```
 
-Familiar to every .NET developer. No custom types to learn.
+- Returns `null` for structurally invalid JSON (malformed input).
+- Returns `ParseResult` with `IsValid == false` for schema validation failures.
+- `using var` ensures pooled buffers are returned automatically.
 
-### 2. Result — for consumers who prefer explicit result types
-
-```csharp
-var result = schema.Parse(bytes);
-
-if (result.IsSuccess)
-    result.Value["serial"].GetString();
-```
-
-Both methods share the same internal parsing logic. The `Result<T>` type is included in `Gluey.Contract` as a lightweight struct — not an opinionated framework, just a convenience wrapper.
+Two overloads exist:
+- `Parse(byte[])` — full path with OffsetTable population for property access.
+- `Parse(ReadOnlySpan<byte>)` — validation only, no OffsetTable.
 
 ### What we do NOT do
 
-- No exceptions for validation failures. `Parse()` returns a failed `Result`, it does not throw.
+- No exceptions for validation failures. `Parse()` returns null or a result with errors.
 - Exceptions are reserved for programming errors only (e.g., null schema, disposed buffer).
+- No `TryParse` pattern — returning `IDisposable` via `out` parameter was error-prone.
 
 ## Consequences
-- Two entry points to maintain, but they share one implementation.
-- Consumers choose the pattern that fits their codebase.
-- `Result<T>` is a simple struct in the library, not a third-party dependency.
+- Single entry point, simple to learn.
+- `using` pattern makes disposal obvious and compiler-enforced.
+- Consumers check `result is { } parsed` for null (malformed JSON) and `parsed.IsValid` for schema errors.

@@ -22,7 +22,7 @@ using Gluey.Contract.Benchmarks.Payloads;
 namespace Gluey.Contract.Benchmarks.Scenarios;
 
 /// <summary>
-/// Benchmarks TryParse and validate-only paths against a nested JSON object schema
+/// Benchmarks Parse and validate-only paths against a nested JSON object schema
 /// with 2-3 levels of object nesting (address with geo, contact).
 /// Includes System.Text.Json baseline for comparison.
 /// </summary>

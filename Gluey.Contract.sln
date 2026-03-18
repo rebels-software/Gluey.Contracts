@@ -31,6 +31,10 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "adr", "adr", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
 	ProjectSection(SolutionItems) = preProject
 		docs\adr\1-context-scope-and-goals.md = docs\adr\1-context-scope-and-goals.md
+		docs\adr\10-precompiled-property-lookup.md = docs\adr\10-precompiled-property-lookup.md
+		docs\adr\11-lazy-string-decoding.md = docs\adr\11-lazy-string-decoding.md
+		docs\adr\12-bool-only-composition-validators.md = docs\adr\12-bool-only-composition-validators.md
+		docs\adr\13-fast-path-scalar-validation.md = docs\adr\13-fast-path-scalar-validation.md
 		docs\adr\2-zero-allocation-design.md = docs\adr\2-zero-allocation-design.md
 		docs\adr\3-single-pass-validation.md = docs\adr\3-single-pass-validation.md
 		docs\adr\4-result-over-exceptions.md = docs\adr\4-result-over-exceptions.md
@@ -38,6 +42,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "adr", "adr", "{02EA681E-C7D
 		docs\adr\6-json-pointer-paths.md = docs\adr\6-json-pointer-paths.md
 		docs\adr\7-no-external-dependencies.md = docs\adr\7-no-external-dependencies.md
 		docs\adr\8-readonly-structs-over-classes.md = docs\adr\8-readonly-structs-over-classes.md
+		docs\adr\9-arraypool-and-threadstatic-pooling.md = docs\adr\9-arraypool-and-threadstatic-pooling.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "invariants", "invariants", "{65825DC4-56F1-40E8-8B8B-83A65FD56D76}"
@@ -47,8 +52,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "invariants", "invariants", 
 		docs\invariants\3-paths-precomputed-from-schema.md = docs\invariants\3-paths-precomputed-from-schema.md
 		docs\invariants\4-no-external-dependencies-in-core.md = docs\invariants\4-no-external-dependencies-in-core.md
 		docs\invariants\5-all-errors-collected-per-parse.md = docs\invariants\5-all-errors-collected-per-parse.md
-		docs\invariants\README.md = docs\invariants\README.md
 		docs\invariants\6-parse-never-throws.md = docs\invariants\6-parse-never-throws.md
+		docs\invariants\README.md = docs\invariants\README.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "benchmarks", "benchmarks", "{66320409-64EC-F7C5-3DEF-65E7510DAAD1}"

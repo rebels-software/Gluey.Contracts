@@ -96,33 +96,26 @@ if (JsonContractSchema.TryLoad(schemaJson, out var schema))
 byte[] data = Encoding.UTF8.GetBytes(jsonPayload);
 
 // Parse with property access (byte[] overload populates OffsetTable)
-if (schema.TryParse(data, out var result))
+using var result = schema.Parse(data);
+if (result is { } parsed && parsed.IsValid)
 {
-    // result.IsValid == true, access properties via result[...]
+    // access properties via parsed[...]
 }
 
 // Parse for validation only (ReadOnlySpan overload — no OffsetTable)
 ReadOnlySpan<byte> span = data.AsSpan();
-if (schema.TryParse(span, out var validationResult))
+using var validationResult = schema.Parse(span);
+if (validationResult is { } vr && vr.IsValid)
 {
-    // validationResult.IsValid == true, but indexers return ParsedProperty.Empty
+    // vr.IsValid == true, but indexers return ParsedProperty.Empty
 }
 ```
 
-**Important:** Always dispose the result to return pooled buffers.
+**Important:** Always use `using` to return pooled buffers.
 
 ```csharp
 using var result = schema.Parse(data);
-// or
-schema.TryParse(data, out var result);
-try
-{
-    // use result
-}
-finally
-{
-    result.Dispose();
-}
+// buffers are returned automatically when result goes out of scope
 ```
 
 ## Accessing Properties
@@ -133,9 +126,10 @@ Every schema-known property has a precomputed RFC 6901 JSON Pointer path.
 Access nested properties in O(1) without chaining.
 
 ```csharp
-schema.TryParse(data, out var result);
+using var result = schema.Parse(data);
+var r = result!.Value;
 
-result["/id"].GetInt32()          // 42
+r["/id"].GetInt32()          // 42
 result["/name"].GetString()       // "Alice"
 result["/email"].GetString()      // "alice@example.com"
 result["/age"].GetInt32()         // 30
@@ -320,11 +314,11 @@ ensures the string conforms to the expected format before you access it.
 
 ```csharp
 byte[] badData = Encoding.UTF8.GetBytes("""{"id": "not-a-number"}""");
-schema.TryParse(badData, out var result);
+using var result = schema.Parse(badData);
 
-if (!result.IsValid)
+if (result is { } parsed && !parsed.IsValid)
 {
-    foreach (var error in result.Errors)
+    foreach (var error in parsed.Errors)
     {
         Console.WriteLine($"[{error.Code}] {error.Path}: {error.Message}");
     }
