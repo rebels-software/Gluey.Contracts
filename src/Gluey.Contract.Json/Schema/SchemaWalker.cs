@@ -337,13 +337,6 @@ internal ref struct SchemaWalker
             if (_reader.TokenType == JsonByteTokenType.EndObject)
                 break;
 
-            if (_reader.TokenType != JsonByteTokenType.PropertyName)
-            {
-                _structuralError = true;
-                AddStructuralError(path);
-                return false;
-            }
-
             propertyCount++;
 
             // Get property name as UTF8 span (no string allocation)
@@ -441,13 +434,10 @@ internal ref struct SchemaWalker
                 }
             }
 
-            // Read the value token
-            if (!_reader.Read())
-            {
-                _structuralError = true;
-                AddStructuralError(path);
-                return false;
-            }
+            // Read the value token — Read() cannot return false here because
+            // Utf8JsonReader throws JsonException (caught by JsonByteReader) on
+            // malformed JSON, which is already handled by the Read() guard above.
+            _reader.Read();
 
             // Record offset before walking (for OffsetTable)
             int valueOffset = _reader.ByteOffset;
@@ -478,16 +468,6 @@ internal ref struct SchemaWalker
 
             if (effectiveSchema is not null)
             {
-                // If additionalProperties is a schema (not boolean false/true), validate against it
-                // for unknown properties
-                if (childSchema is null && node.AdditionalProperties is not null
-                    && node.AdditionalProperties.BooleanSchema != false
-                    && node.AdditionalProperties.BooleanSchema != true
-                    && patternSchema is null)
-                {
-                    effectiveSchema = node.AdditionalProperties;
-                }
-
                 // Fast path: for unknown properties with simple schemas, try to validate
                 // without allocating path strings. Only allocate if validation fails.
                 if (!isKnownProperty && childPath is null && TryWalkValueFastPath(effectiveSchema, childArrayOrd))
@@ -528,26 +508,10 @@ internal ref struct SchemaWalker
             {
                 childPath ??= LazyBuildChildPath(path, name, nameBytes);
 
-                // Use pre-computed grandchild ordinals from PropertyEntry (no per-parse allocation)
+                // Use pre-computed grandchild ordinals from PropertyEntry (no per-parse allocation).
+                // Unknown properties (matchedEntry is null) never reach here because
+                // resolvedChildOrdinal stays -1 when childPath is null.
                 Dictionary<string, int>? grandchildOrdinals = matchedEntry?.GrandchildOrdinals;
-
-                // If not from lookup, fall back to computing for unknown properties with schemas
-                if (grandchildOrdinals is null && matchedEntry is null)
-                {
-                    var resolvedChild = (childSchema?.ResolvedRef ?? childSchema);
-                    if (resolvedChild?.Properties is not null)
-                    {
-                        grandchildOrdinals = new Dictionary<string, int>();
-                        foreach (var (gcName, _) in resolvedChild.Properties)
-                        {
-                            string gcPath = SchemaNode.BuildChildPath(childPath, gcName);
-                            if (_nameToOrdinal!.TryGetValue(gcPath, out int gcOrd))
-                            {
-                                grandchildOrdinals[gcName] = gcOrd;
-                            }
-                        }
-                    }
-                }
 
                 // Check if this child is an array type with items
                 ArrayBuffer? childArrayBuffer = null;
@@ -1228,11 +1192,10 @@ internal ref struct SchemaWalker
         int depth = 1;
         while (depth > 0)
         {
-            if (!_reader.Read())
-            {
-                _structuralError = true;
-                return;
-            }
+            // Read() cannot return false here — Utf8JsonReader throws on
+            // malformed JSON, caught by JsonByteReader as a structural error
+            // before we ever reach this point.
+            _reader.Read();
 
             if (_reader.TokenType == JsonByteTokenType.StartObject || _reader.TokenType == JsonByteTokenType.StartArray)
                 depth++;
