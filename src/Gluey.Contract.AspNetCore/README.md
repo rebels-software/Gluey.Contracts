@@ -47,14 +47,10 @@ builder.Services.AddGlueyContracts(registry =>
 ```csharp
 app.MapPost("/orders", (HttpContext ctx) =>
 {
-    using var result = ctx.GetContractResult();
-    if (result is { } parsed)
-    {
-        var name = parsed["name"].GetString();
-        var qty = parsed["quantity"].GetInt32();
-        return Results.Ok(new { name, qty });
-    }
-    return Results.BadRequest();
+    using var parsed = ctx.GetContractResult();
+    var name = parsed["name"].GetString();
+    var qty = parsed["quantity"].GetInt32();
+    return Results.Ok(new { name, qty });
 }).WithContractValidation("create-order");
 ```
 

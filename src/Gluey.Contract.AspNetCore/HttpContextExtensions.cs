@@ -23,19 +23,24 @@ public static class HttpContextExtensions
 {
     /// <summary>
     /// Gets the validated request body as a <see cref="ParseResult"/>.
-    /// Only available after the <see cref="ContractValidationFilter"/> has run successfully.
+    /// Only available after <see cref="ContractValidationFilter"/> has run successfully.
     /// The caller is responsible for disposing the result.
     /// </summary>
     /// <param name="context">The HTTP context.</param>
-    /// <returns>A <see cref="ParseResult"/>, or <c>null</c> if no validated body is available.</returns>
-    public static ParseResult? GetContractResult(this HttpContext context)
+    /// <returns>A <see cref="ParseResult"/>.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when called outside a validated endpoint (no <c>WithContractValidation</c>).
+    /// </exception>
+    public static ParseResult GetContractResult(this HttpContext context)
     {
         if (context.Items.TryGetValue("Contract:Body", out var bodyObj) && bodyObj is byte[] body
             && context.Items.TryGetValue("Contract:Schema", out var schemaObj) && schemaObj is IContractSchema schema)
         {
-            return schema.Parse(body);
+            return schema.Parse(body)
+                ?? throw new InvalidOperationException("Contract validation passed but re-parse returned null. This should not happen.");
         }
 
-        return null;
+        throw new InvalidOperationException(
+            "No validated contract data found. Ensure this endpoint uses .WithContractValidation().");
     }
 }

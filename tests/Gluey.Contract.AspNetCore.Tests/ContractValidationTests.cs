@@ -68,13 +68,9 @@ public class ContractValidationTests
 
         app.MapPost("/orders", (HttpContext ctx) =>
         {
-            using var result = ctx.GetContractResult();
-            if (result is { } parsed)
-            {
-                var name = parsed["name"].GetString();
-                return Results.Ok(new { accepted = true, name });
-            }
-            return Results.BadRequest();
+            using var parsed = ctx.GetContractResult();
+            var name = parsed["name"].GetString();
+            return Results.Ok(new { accepted = true, name });
         }).WithContractValidation(schema);
 
         app.MapPost("/orders-by-name", (HttpContext ctx) =>
