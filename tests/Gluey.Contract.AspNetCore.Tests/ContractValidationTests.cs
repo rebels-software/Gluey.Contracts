@@ -78,6 +78,13 @@ public class ContractValidationTests
             return Results.Ok(new { accepted = true });
         }).WithContractValidation("order");
 
+        app.MapPost("/orders-bind", (HttpContext ctx) =>
+        {
+            var body = ctx.GetContractBody();
+            var name = body["name"].GetString();
+            return Results.Ok(new { accepted = true, name });
+        }).WithContractValidation(schema);
+
         app.Start();
         return app.GetTestClient();
     }
@@ -280,5 +287,31 @@ public class ContractValidationTests
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         body.GetProperty("errorCode").GetString().Should().Be("VALIDATION_FAILED");
         body.GetProperty("count").GetInt32().Should().BeGreaterThan(0);
+    }
+
+    // ── ContractBody parameter binding ───────────────────────────────────
+
+    [Test]
+    public async Task ContractBody_BindsAsParameter()
+    {
+        using var client = CreateClient();
+        var response = await client.PostAsync("/orders-bind",
+            new StringContent("""{"name":"Widget","quantity":5}""", Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("accepted").GetBoolean().Should().BeTrue();
+        body.GetProperty("name").GetString().Should().Be("Widget");
+    }
+
+    [Test]
+    public async Task ContractBody_InvalidData_Returns400BeforeBinding()
+    {
+        using var client = CreateClient();
+        var response = await client.PostAsync("/orders-bind",
+            new StringContent("""{"name":"Widget","quantity":200}""", Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 }

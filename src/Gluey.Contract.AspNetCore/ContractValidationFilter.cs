@@ -34,27 +34,10 @@ internal sealed class ContractValidationFilter : IEndpointFilter
     {
         var httpContext = context.HttpContext;
 
-        // Read the request body
-        httpContext.Request.EnableBuffering();
+        // Read the request body directly into a byte array
         var body = await ReadBodyAsync(httpContext.Request);
 
-        if (body is null || body.Length == 0)
-        {
-            return Results.Json(new ContractProblemDetails
-            {
-                Type = "https://tools.ietf.org/html/rfc9110#section-15.5.1",
-                Title = "Validation failed",
-                Status = StatusCodes.Status400BadRequest,
-                Errors = [new ContractValidationError
-                {
-                    Path = "",
-                    Code = "EmptyBody",
-                    Message = "Request body is empty."
-                }]
-            }, statusCode: StatusCodes.Status400BadRequest);
-        }
-
-        // Parse and validate
+        // Parse and validate — returns null for empty/structurally invalid input
         using var result = _schema.Parse(body);
 
         if (result is null)
@@ -68,7 +51,7 @@ internal sealed class ContractValidationFilter : IEndpointFilter
                 {
                     Path = "",
                     Code = "InvalidData",
-                    Message = "Request body is structurally invalid."
+                    Message = "Request body is empty or structurally invalid."
                 }]
             }, statusCode: StatusCodes.Status400BadRequest);
         }
@@ -87,22 +70,31 @@ internal sealed class ContractValidationFilter : IEndpointFilter
             return Results.Json(problemDetails, statusCode: StatusCodes.Status400BadRequest);
         }
 
-        // Store the validated body in Items so handlers can access it
+        // Store the validated body and schema for GetContractResult() / ContractBody binding
         httpContext.Items["Contract:Body"] = body;
         httpContext.Items["Contract:Schema"] = _schema;
-
-        // Reset the body stream for downstream consumption
-        httpContext.Request.Body.Position = 0;
 
         return await next(context);
     }
 
-    private static async Task<byte[]?> ReadBodyAsync(HttpRequest request)
+    private static async Task<byte[]> ReadBodyAsync(HttpRequest request)
     {
+        if (request.ContentLength is > 0)
+        {
+            var body = new byte[(int)request.ContentLength.Value];
+            var totalRead = 0;
+            while (totalRead < body.Length)
+            {
+                var read = await request.Body.ReadAsync(body.AsMemory(totalRead));
+                if (read == 0) break;
+                totalRead += read;
+            }
+            return body;
+        }
+
+        // Chunked or unknown length — read to end
         using var ms = new MemoryStream();
         await request.Body.CopyToAsync(ms);
-        var bytes = ms.ToArray();
-        request.Body.Position = 0;
-        return bytes.Length > 0 ? bytes : null;
+        return ms.ToArray();
     }
 }

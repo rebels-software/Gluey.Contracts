@@ -47,14 +47,16 @@ builder.Services.AddGlueyContracts(registry =>
 ```csharp
 app.MapPost("/orders", (HttpContext ctx) =>
 {
-    using var parsed = ctx.GetContractResult();
-    var name = parsed["name"].GetString();
-    var qty = parsed["quantity"].GetInt32();
+    var body = ctx.GetContractBody();  // auto-disposed at end of request
+    var name = body["name"].GetString();
+    var qty = body["quantity"].GetInt32();
     return Results.Ok(new { name, qty });
 }).WithContractValidation("create-order");
 ```
 
 Invalid requests are short-circuited with a 400 response before the handler runs.
+
+> **`GetContractBody()`** returns a `ContractBody` that is automatically disposed at the end of the request — no `using` needed. Use `GetContractResult()` if you prefer manual disposal.
 
 ### 3. Automatic RFC 7807 error responses
 

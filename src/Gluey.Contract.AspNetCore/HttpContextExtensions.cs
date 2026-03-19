@@ -22,6 +22,33 @@ namespace Gluey.Contract.AspNetCore;
 public static class HttpContextExtensions
 {
     /// <summary>
+    /// Gets the validated request body as a <see cref="ContractBody"/>.
+    /// Auto-disposed at the end of the request — no <c>using</c> needed.
+    /// Only available after <see cref="ContractValidationFilter"/> has run successfully.
+    /// </summary>
+    /// <param name="context">The HTTP context.</param>
+    /// <returns>A <see cref="ContractBody"/>.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when called outside a validated endpoint (no <c>WithContractValidation</c>).
+    /// </exception>
+    public static ContractBody GetContractBody(this HttpContext context)
+    {
+        if (context.Items.TryGetValue("Contract:Body", out var bodyObj) && bodyObj is byte[] body
+            && context.Items.TryGetValue("Contract:Schema", out var schemaObj) && schemaObj is IContractSchema schema)
+        {
+            var result = schema.Parse(body)
+                ?? throw new InvalidOperationException("Contract validation passed but re-parse returned null.");
+
+            var contractBody = new ContractBody(result);
+            context.Response.RegisterForDispose(contractBody);
+            return contractBody;
+        }
+
+        throw new InvalidOperationException(
+            "No validated contract data found. Ensure this endpoint uses .WithContractValidation().");
+    }
+
+    /// <summary>
     /// Gets the validated request body as a <see cref="ParseResult"/>.
     /// Only available after <see cref="ContractValidationFilter"/> has run successfully.
     /// The caller is responsible for disposing the result.
@@ -37,7 +64,7 @@ public static class HttpContextExtensions
             && context.Items.TryGetValue("Contract:Schema", out var schemaObj) && schemaObj is IContractSchema schema)
         {
             return schema.Parse(body)
-                ?? throw new InvalidOperationException("Contract validation passed but re-parse returned null. This should not happen.");
+                ?? throw new InvalidOperationException("Contract validation passed but re-parse returned null.");
         }
 
         throw new InvalidOperationException(
