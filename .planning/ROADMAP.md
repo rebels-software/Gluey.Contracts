@@ -44,10 +44,12 @@ Plans:
   2. Contract with a cycle, missing root, shared parent, invalid ref, overlapping bits, or missing size is rejected with a clear error at load time
   3. Dependency chain is resolved into an ordered field array with precomputed endianness per field (no graph traversal at parse time)
   4. Contract model captures all ADR-16 field types (scalars, strings, enums, bit fields, arrays, structs, padding)
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: TBD
+- [ ] 02-01-PLAN.md — Scaffold Binary project, DTOs, BinaryContractNode model, BinaryContractLoader, and new ValidationErrorCodes
+- [ ] 02-02-PLAN.md — Implement multi-phase contract validation (graph, size, type-specific rules)
+- [ ] 02-03-PLAN.md — Chain resolution with byte offsets and endianness, BinaryContractSchema public API
 
 ### Phase 3: Scalar Parsing
 **Goal**: Consumer can parse a binary payload containing scalar fields and access values through ParsedProperty
@@ -130,7 +132,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Format Flag | 0/1 | Planning complete | - |
-| 2. Contract Model | 0/? | Not started | - |
+| 2. Contract Model | 0/3 | Planning complete | - |
 | 3. Scalar Parsing | 0/? | Not started | - |
 | 4. Leaf Types | 0/? | Not started | - |
 | 5. Composite Types | 0/? | Not started | - |
