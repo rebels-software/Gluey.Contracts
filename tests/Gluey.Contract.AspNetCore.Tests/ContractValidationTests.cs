@@ -432,6 +432,133 @@ public class ContractValidationTests
         var body = await response.Content.ReadFromJsonAsync<JsonElement>();
         body.GetProperty("requestId").GetString().Should().Be("abc-123");
     }
+
+    // ── ContractSchemaRegistry ───────────────────────────────────────────
+
+    [Test]
+    public void ContractSchemaRegistry_TryGet_UnknownName_ReturnsFalse()
+    {
+        var registry = new ContractSchemaRegistry();
+        registry.TryGet("nonexistent", out var schema).Should().BeFalse();
+        schema.Should().BeNull();
+    }
+
+    [Test]
+    public void ContractSchemaRegistry_Get_UnknownName_ThrowsKeyNotFound()
+    {
+        var registry = new ContractSchemaRegistry();
+        var act = () => registry.Get("nonexistent");
+        act.Should().Throw<KeyNotFoundException>();
+    }
+
+    [Test]
+    public void ContractSchemaRegistry_Add_ThenTryGet_ReturnsSchema()
+    {
+        var registry = new ContractSchemaRegistry();
+        var schema = JsonContractSchema.Load(OrderSchema)!;
+        registry.Add("test", schema);
+
+        registry.TryGet("test", out var result).Should().BeTrue();
+        result.Should().BeSameAs(schema);
+    }
+
+    // ── ContractAttribute ────────────────────────────────────────────────
+
+    [Test]
+    public void ContractAttribute_StoresSchemaName()
+    {
+        var attr = new ContractAttribute("my-schema");
+        attr.SchemaName.Should().Be("my-schema");
+    }
+
+    // ── GetContractResult ────────────────────────────────────────────────
+
+    [Test]
+    public async Task GetContractResult_ValidRequest_ReturnsResult()
+    {
+        using var client = CreateClient();
+        // Use the filter-based endpoint which stores in Items
+        var response = await client.PostAsync("/orders",
+            new StringContent("""{"name":"Widget","quantity":5}""", Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Test]
+    public void GetContractResult_WithoutFilter_ThrowsInvalidOperation()
+    {
+        var context = new DefaultHttpContext();
+        var act = () => context.GetContractResult();
+        act.Should().Throw<InvalidOperationException>();
+    }
+
+    [Test]
+    public void GetContractBody_WithoutFilter_ThrowsInvalidOperation()
+    {
+        var context = new DefaultHttpContext();
+        var act = () => context.GetContractBody();
+        act.Should().Throw<InvalidOperationException>();
+    }
+
+    // ── TransformError returning null (fall-through) ─────────────────────
+
+    [Test]
+    public async Task TransformError_ReturnsNull_FallsThrough()
+    {
+        var schema = JsonContractSchema.Load(OrderSchema)!;
+
+        var builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseTestServer();
+        builder.Services.AddGlueyContracts(options =>
+        {
+            options.TransformError = (error, ctx) => null; // fall through to default
+        });
+
+        var app = builder.Build();
+        app.MapPost("/orders", () => Results.Ok())
+            .WithContractValidation(schema);
+        app.Start();
+
+        using var client = app.GetTestClient();
+        var response = await client.PostAsync("/orders",
+            new StringContent("""{"name":"Widget","quantity":200}""", Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        var error = body.GetProperty("errors")[0];
+        // Should have default error shape (path, code, message)
+        error.GetProperty("path").GetString().Should().Be("/quantity");
+        error.GetProperty("code").GetString().Should().NotBeNullOrEmpty();
+    }
+
+    // ── AddGlueyContracts overloads ──────────────────────────────────────
+
+    [Test]
+    public void AddGlueyContracts_WithOptions_RegistersOptions()
+    {
+        var services = new ServiceCollection();
+        services.AddGlueyContracts(options =>
+        {
+            options.TransformError = (e, c) => null;
+        });
+
+        var provider = services.BuildServiceProvider();
+        var options = provider.GetService<ContractOptions>();
+        options.Should().NotBeNull();
+        options!.TransformError.Should().NotBeNull();
+    }
+
+    [Test]
+    public void AddGlueyContracts_WithoutOptions_RegistersDefaults()
+    {
+        var services = new ServiceCollection();
+        services.AddGlueyContracts();
+
+        var provider = services.BuildServiceProvider();
+        provider.GetService<ContractOptions>().Should().NotBeNull();
+        provider.GetService<ContractSchemaRegistry>().Should().NotBeNull();
+    }
 }
 
 public class OrderPayload : ContractBody<OrderPayload>
