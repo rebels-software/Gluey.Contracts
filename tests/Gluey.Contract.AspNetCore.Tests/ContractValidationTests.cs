@@ -91,6 +91,11 @@ public class ContractValidationTests
             return Results.Ok(new { accepted = true, name });
         }).WithContract();
 
+        app.MapPost("/orders-typed", [Contract("order")] (OrderPayload body) =>
+        {
+            return Results.Ok(new { accepted = true, body.Name, body.Quantity });
+        }).WithContract();
+
         app.Start();
         return app.GetTestClient();
     }
@@ -374,4 +379,37 @@ public class ContractValidationTests
         var error = body.GetProperty("errors")[0];
         error.GetProperty("code").GetString().Should().Be("INVALID_QUANTITY");
     }
+
+    // ── Typed ContractBody<TSelf> ────────────────────────────────────────
+
+    [Test]
+    public async Task TypedContractBody_ValidRequest()
+    {
+        using var client = CreateClient();
+        var response = await client.PostAsync("/orders-typed",
+            new StringContent("""{"name":"Widget","quantity":5}""", Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+        body.GetProperty("accepted").GetBoolean().Should().BeTrue();
+        body.GetProperty("name").GetString().Should().Be("Widget");
+        body.GetProperty("quantity").GetInt32().Should().Be(5);
+    }
+
+    [Test]
+    public async Task TypedContractBody_InvalidRequest_Returns400()
+    {
+        using var client = CreateClient();
+        var response = await client.PostAsync("/orders-typed",
+            new StringContent("""{"name":"Widget","quantity":200}""", Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+}
+
+public class OrderPayload : ContractBody<OrderPayload>
+{
+    public string Name => this["name"].GetString();
+    public int Quantity => this["quantity"].GetInt32();
 }

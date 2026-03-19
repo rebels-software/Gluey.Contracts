@@ -29,20 +29,40 @@ namespace Gluey.Contract.AspNetCore;
 /// {
 ///     var name = body["name"].GetString();
 ///     return Results.Ok(new { name });
-/// });
+/// }).WithContract();
+/// </code>
+///
+/// <para>For typed access, subclass <see cref="ContractBody{TSelf}"/>:</para>
+/// <code>
+/// public class OrderPayload : ContractBody&lt;OrderPayload&gt;
+/// {
+///     public string Name => this["name"].GetString();
+///     public int Quantity => this["quantity"].GetInt32();
+/// }
 /// </code>
 /// </summary>
-public sealed class ContractBody : IDisposable
+public class ContractBody : IDisposable
 {
     private ParseResult _result;
     private object? _validationFailure;
 
+    /// <summary>
+    /// Parameterless constructor for derived types and the <c>new()</c> constraint.
+    /// </summary>
+    public ContractBody() { }
+
+    /// <summary>
+    /// Creates a new <see cref="ContractBody"/> wrapping the given <see cref="ParseResult"/>.
+    /// </summary>
     internal ContractBody(ParseResult result)
     {
         _result = result;
     }
 
-    private ContractBody(object validationFailure)
+    /// <summary>
+    /// Creates a <see cref="ContractBody"/> representing a validation failure.
+    /// </summary>
+    internal ContractBody(object validationFailure, bool _)
     {
         _validationFailure = validationFailure;
     }
@@ -85,10 +105,54 @@ public sealed class ContractBody : IDisposable
 
     /// <summary>
     /// Binds a <see cref="ContractBody"/> from the HTTP request.
-    /// Reads the body, resolves the schema from <c>[Contract]</c> attribute + <see cref="ContractSchemaRegistry"/>,
-    /// validates, and stores failure for the filter to short-circuit.
     /// </summary>
     public static async ValueTask<ContractBody?> BindAsync(HttpContext context, ParameterInfo parameter)
+    {
+        return await ContractBodyBinder.BindAsync<ContractBody>(context, parameter);
+    }
+}
+
+/// <summary>
+/// Generic base class for typed contract bodies.
+/// Inherit from this to get strongly-typed property access with automatic <c>BindAsync</c> support.
+///
+/// <para>Example:</para>
+/// <code>
+/// public class OrderPayload : ContractBody&lt;OrderPayload&gt;
+/// {
+///     public string Name => this["name"].GetString();
+///     public int Quantity => this["quantity"].GetInt32();
+/// }
+///
+/// app.MapPost("/orders", [Contract("order")] (OrderPayload body) =>
+/// {
+///     return Results.Ok(new { body.Name, body.Quantity });
+/// }).WithContract();
+/// </code>
+/// </summary>
+/// <typeparam name="TSelf">The derived type (CRTP pattern).</typeparam>
+public class ContractBody<TSelf> : ContractBody where TSelf : ContractBody<TSelf>, new()
+{
+    /// <inheritdoc />
+    protected ContractBody() { }
+
+    /// <summary>
+    /// Binds a <typeparamref name="TSelf"/> from the HTTP request.
+    /// Called automatically by the ASP.NET Core minimal API parameter binding infrastructure.
+    /// </summary>
+    public static new async ValueTask<TSelf?> BindAsync(HttpContext context, ParameterInfo parameter)
+    {
+        return await ContractBodyBinder.BindAsync<TSelf>(context, parameter);
+    }
+}
+
+/// <summary>
+/// Shared binding logic for <see cref="ContractBody"/> and <see cref="ContractBody{TSelf}"/>.
+/// </summary>
+internal static class ContractBodyBinder
+{
+    internal static async ValueTask<T?> BindAsync<T>(HttpContext context, ParameterInfo parameter)
+        where T : ContractBody, new()
     {
         // If the filter already validated, reuse stored data
         if (context.Items.TryGetValue("Contract:Body", out var cachedBody) && cachedBody is byte[] cachedBytes
@@ -97,7 +161,7 @@ public sealed class ContractBody : IDisposable
             var cachedResult = cached.Parse(cachedBytes);
             if (cachedResult is { } parsed)
             {
-                var body = new ContractBody(parsed);
+                var body = CreateSuccess<T>(parsed);
                 context.Response.RegisterForDispose(body);
                 return body;
             }
@@ -120,7 +184,7 @@ public sealed class ContractBody : IDisposable
 
         if (result is null)
         {
-            var failure = new ContractBody(new ContractProblemDetails
+            var failure = CreateFailure<T>(new ContractProblemDetails
             {
                 Type = "https://tools.ietf.org/html/rfc9110#section-15.5.1",
                 Title = "Validation failed",
@@ -142,27 +206,48 @@ public sealed class ContractBody : IDisposable
 
             if (options?.OnValidationFailed is { } handler)
             {
-                // Store the handler + errors for the filter to execute
-                var failure = new ContractBody(new DeferredValidationFailure(handler, result.Value.Errors));
+                var failure = CreateFailure<T>(new DeferredValidationFailure(handler, result.Value.Errors));
                 context.Response.RegisterForDispose(failure);
                 return failure;
             }
 
             var problemDetails = ProblemDetailsMapper.Build(result.Value.Errors, context, options);
             result.Value.Dispose();
-            var failureBody = new ContractBody(problemDetails);
+            var failureBody = CreateFailure<T>(problemDetails);
             context.Response.RegisterForDispose(failureBody);
             return failureBody;
         }
 
-        var contractBody = new ContractBody(result.Value);
+        var contractBody = CreateSuccess<T>(result.Value);
         context.Response.RegisterForDispose(contractBody);
         return contractBody;
     }
 
+    private static T CreateSuccess<T>(ParseResult result) where T : ContractBody, new()
+    {
+        if (typeof(T) == typeof(ContractBody))
+            return (T)(object)new ContractBody(result);
+
+        var instance = new T();
+        // Use reflection to set the private _result field
+        var field = typeof(ContractBody).GetField("_result", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        field.SetValue(instance, result);
+        return instance;
+    }
+
+    private static T CreateFailure<T>(object failure) where T : ContractBody, new()
+    {
+        if (typeof(T) == typeof(ContractBody))
+            return (T)(object)new ContractBody(failure, false);
+
+        var instance = new T();
+        var field = typeof(ContractBody).GetField("_validationFailure", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        field.SetValue(instance, failure);
+        return instance;
+    }
+
     private static IContractSchema? ResolveSchema(HttpContext context, ParameterInfo parameter)
     {
-        // Check [Contract] attribute on the method
         var contractAttr = parameter.Member.GetCustomAttribute<ContractAttribute>()
             ?? parameter.Member.DeclaringType?.GetCustomAttribute<ContractAttribute>();
 
