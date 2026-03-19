@@ -66,6 +66,10 @@ internal static class BinaryContractValidator
     {
         foreach (var (name, node) in fields)
         {
+            // Array fields compute size from count * element.size, not an explicit size declaration.
+            if (node.Type == "array")
+                continue;
+
             if (node.Size <= 0)
             {
                 errors.Add(new ValidationError(
