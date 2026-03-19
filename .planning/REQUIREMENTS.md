@@ -17,12 +17,12 @@
 
 - [x] **CNTR-01**: Binary contract JSON loaded and parsed into internal model (BinaryContractNode tree)
 - [ ] **CNTR-02**: Dependency chain resolved at load time into ordered field array (no graph traversal at parse time)
-- [ ] **CNTR-03**: Contract-load validation: exactly one root field (no dependsOn)
-- [ ] **CNTR-04**: Contract-load validation: no cycles in dependency graph
-- [ ] **CNTR-05**: Contract-load validation: each field has at most one child
-- [ ] **CNTR-06**: Contract-load validation: semi-dynamic array count references valid numeric field earlier in chain
-- [ ] **CNTR-07**: Contract-load validation: bit sub-fields do not overlap and fit within container size
-- [ ] **CNTR-08**: Contract-load validation: size is explicitly declared on every field
+- [x] **CNTR-03**: Contract-load validation: exactly one root field (no dependsOn)
+- [x] **CNTR-04**: Contract-load validation: no cycles in dependency graph
+- [x] **CNTR-05**: Contract-load validation: each field has at most one child
+- [x] **CNTR-06**: Contract-load validation: semi-dynamic array count references valid numeric field earlier in chain
+- [x] **CNTR-07**: Contract-load validation: bit sub-fields do not overlap and fit within container size
+- [x] **CNTR-08**: Contract-load validation: size is explicitly declared on every field
 - [ ] **CNTR-09**: Endianness resolved at load time (contract-level default with per-field override)
 
 ### Scalar Parsing
@@ -112,12 +112,12 @@
 | CORE-05 | Phase 3 | Pending |
 | CNTR-01 | Phase 2 | Complete |
 | CNTR-02 | Phase 2 | Pending |
-| CNTR-03 | Phase 2 | Pending |
-| CNTR-04 | Phase 2 | Pending |
-| CNTR-05 | Phase 2 | Pending |
-| CNTR-06 | Phase 2 | Pending |
-| CNTR-07 | Phase 2 | Pending |
-| CNTR-08 | Phase 2 | Pending |
+| CNTR-03 | Phase 2 | Complete |
+| CNTR-04 | Phase 2 | Complete |
+| CNTR-05 | Phase 2 | Complete |
+| CNTR-06 | Phase 2 | Complete |
+| CNTR-07 | Phase 2 | Complete |
+| CNTR-08 | Phase 2 | Complete |
 | CNTR-09 | Phase 2 | Pending |
 | SCLR-01 | Phase 3 | Pending |
 | SCLR-02 | Phase 3 | Pending |
