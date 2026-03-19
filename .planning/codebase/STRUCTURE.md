@@ -1,231 +1,222 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-03-18
+**Analysis Date:** 2026-03-19
 
 ## Directory Layout
 
 ```
 gluey-contracts/
-├── src/
-│   ├── Gluey.Contract/                      # Core: schema model, parsing primitives
-│   │   ├── Schema/                          # Schema tree & compilation
-│   │   ├── Parsing/                         # ParsedProperty, OffsetTable, ParseResult
-│   │   ├── Buffers/                         # ArrayBuffer (array element storage)
-│   │   └── Validation/                      # ErrorCollector, ValidationError, error codes
-│   │
-│   └── Gluey.Contract.Json/                 # JSON-specific parser & validators
-│       ├── Reader/                          # JsonByteReader, token types, read errors
-│       ├── Schema/                          # JsonContractSchema, SchemaWalker, loaders
-│       └── Validators/                      # Per-keyword validators (9 files)
-│
-├── tests/
-│   ├── Gluey.Contract.Tests/                # Core unit tests
-│   └── Gluey.Contract.Json.Tests/           # JSON parser & validator tests
-│
-├── benchmarks/
-│   └── Gluey.Contract.Benchmarks/           # BenchmarkDotNet performance measurements
-│
-├── docs/                                    # Documentation
-├── assets/                                  # Icon, branding
-├── .github/                                 # GitHub workflows (CI/CD)
-└── Gluey.Contract.sln                       # Solution file
+├── src/                            # Source code
+│   ├── Gluey.Contract/             # Core library (validation primitives, schema model)
+│   │   ├── Buffers/                # ArrayPool-backed buffer abstractions
+│   │   ├── Parsing/                # ParseResult, ParsedProperty, OffsetTable
+│   │   ├── Schema/                 # SchemaNode, SchemaRegistry, SchemaType, SchemaOptions
+│   │   └── Validation/             # ErrorCollector, ValidationError, ValidationErrorCode
+│   ├── Gluey.Contract.Json/        # JSON Schema (Draft 2020-12) implementation
+│   │   ├── Reader/                 # JsonByteReader, JsonReadError, JsonByteTokenType
+│   │   ├── Schema/                 # JsonContractSchema, JsonSchemaLoader, SchemaRefResolver, SchemaIndexer, SchemaWalker
+│   │   ├── Validators/             # Keyword validators (Type, Numeric, String, Array, Object, Format, Composition, Conditional, Dependency)
+│   │   └── Serialization/          # ParseResultJsonExtensions (ToJson, WriteJson)
+│   └── Gluey.Contract.AspNetCore/  # ASP.NET Core integration (planned)
+├── tests/                          # Test projects
+│   ├── Gluey.Contract.Tests/       # Unit tests for core library
+│   └── Gluey.Contract.Json.Tests/  # Unit and integration tests for JSON implementation
+├── benchmarks/                     # Performance benchmarks
+│   └── Gluey.Contract.Benchmarks/  # BenchmarkDotNet suite
+├── docs/                           # Documentation
+├── Gluey.Contract.sln              # Solution file
+├── README.md                        # Project overview and quick start
+├── LICENSE                          # Apache 2.0
+└── NOTICE                           # Attribution
 
 ```
 
 ## Directory Purposes
 
-**`src/Gluey.Contract/`:**
-- Purpose: Core library interfaces and data structures, agnostic to wire format
-- Contains: Schema nodes, parsing/indexing primitives, error collection, buffer management
-- Key files: `SchemaNode.cs`, `ParsedProperty.cs`, `ParseResult.cs`, `OffsetTable.cs`, `ErrorCollector.cs`
+**src/Gluey.Contract:**
+- Purpose: Core runtime validation engine and parsed data model (format-agnostic)
+- Contains: Schema representation (SchemaNode, SchemaRegistry), validation primitives (ErrorCollector, ValidationError), parsed data accessors (ParseResult, ParsedProperty, OffsetTable), buffer management (ArrayBuffer)
+- Key files:
+  - `Schema/SchemaNode.cs` — Immutable JSON Schema tree node
+  - `Parsing/ParseResult.cs` — Composite result wrapping offset table and errors
+  - `Parsing/ParsedProperty.cs` — Zero-allocation byte accessor with lazy materialization
+  - `Validation/ErrorCollector.cs` — ArrayPool-backed error collection
+  - `Buffers/ArrayBuffer.cs` — Pool-backed array element storage
 
-**`src/Gluey.Contract/Schema/`:**
-- Purpose: Schema representation and metadata
-- Contains: `SchemaNode` (immutable tree node with all JSON Schema Draft 2020-12 keyword properties), `SchemaType` (enum of JSON types), `SchemaOptions` (config), `SchemaRegistry` (cross-schema reference registry)
-- Key files: `SchemaNode.cs`, `SchemaType.cs`, `SchemaRegistry.cs`
+**src/Gluey.Contract.Json:**
+- Purpose: JSON wire format parser using JSON Schema; single-pass validation and indexing
+- Contains: JSON tokenizer (JsonByteReader), schema loading and reference resolution, ordinal assignment, single-pass walker, keyword validators
+- Key files:
+  - `Reader/JsonByteReader.cs` — Tokenizer with byte offset tracking
+  - `Schema/JsonContractSchema.cs` — Public API for load and parse
+  - `Schema/JsonSchemaLoader.cs` — Lexical JSON Schema parsing
+  - `Schema/SchemaRefResolver.cs` — Reference ($ref, $defs, $anchor) resolution
+  - `Schema/SchemaIndexer.cs` — Ordinal assignment
+  - `Schema/SchemaWalker.cs` — Single-pass validation orchestrator
+  - `Validators/*.cs` — Keyword validators (8 files)
 
-**`src/Gluey.Contract/Parsing/`:**
-- Purpose: Property access and parse result assembly
-- Contains: `ParsedProperty` (readonly struct: offset + length + navigation), `OffsetTable` (ArrayPool-backed ordinal→property mapping), `ParseResult` (public composite: table + errors)
-- Key files: `ParsedProperty.cs`, `OffsetTable.cs`, `ParseResult.cs`
+**src/Gluey.Contract.AspNetCore:**
+- Purpose: Planned ASP.NET Core integration (model binder, middleware, ProblemDetails serialization)
+- Contains: Currently empty (directory structure reserved)
 
-**`src/Gluey.Contract/Buffers/`:**
-- Purpose: Array element storage with region tracking
-- Contains: `ArrayBuffer` (thread-static cached ArrayPool-backed storage for array elements, grouped by ordinal)
-- Key files: `ArrayBuffer.cs`
+**tests/Gluey.Contract.Tests:**
+- Purpose: Unit tests for core library primitives
+- Contains: Tests for SchemaNode, ErrorCollector, OffsetTable, ArrayBuffer, ValidationError structures
+- Test file pattern: `*Tests.cs` files
 
-**`src/Gluey.Contract/Validation/`:**
-- Purpose: Error representation and collection
-- Contains: `ValidationError` (code + path + message), `ValidationErrorCode` (enum), `ValidationErrorMessages` (message mapping), `ErrorCollector` (ArrayPool-backed error buffer)
-- Key files: `ValidationError.cs`, `ValidationErrorCode.cs`, `ValidationErrorMessages.cs`, `ErrorCollector.cs`
+**tests/Gluey.Contract.Json.Tests:**
+- Purpose: Comprehensive tests for JSON parsing, schema loading, and validation
+- Contains: Tests organized by concern: allocation (no-alloc verification), parsing, schema loading, validation per keyword, nested property access, array element access, format validation, composition (allOf/anyOf/oneOf), conditional, dependencies, custom error enrichment
+- Test file pattern: `*Tests.cs` with subdirectories for allocation tests
 
-**`src/Gluey.Contract.Json/`:**
-- Purpose: JSON-specific parsing and validation (pluggable format layer)
-- Contains: JSON tokenizer, schema loader, single-pass walker, keyword validators
-- Key files: `JsonContractSchema.cs` (public API), `SchemaWalker.cs` (orchestrator)
-
-**`src/Gluey.Contract.Json/Reader/`:**
-- Purpose: Convert raw UTF-8 bytes to typed tokens with byte offsets
-- Contains: `JsonByteReader` (wraps Utf8JsonReader, tracks offsets), `JsonByteTokenType` (token enum), `JsonReadError`/`JsonReadErrorKind` (malformed JSON reporting)
-- Key files: `JsonByteReader.cs`, `JsonByteTokenType.cs`, `JsonReadError.cs`
-
-**`src/Gluey.Contract.Json/Schema/`:**
-- Purpose: JSON Schema loading, compilation, and single-pass walking
-- Contains:
-  - `JsonContractSchema` — Public API for load/parse
-  - `JsonSchemaLoader` — Parses JSON Schema documents into SchemaNode tree
-  - `SchemaIndexer` — Assigns ordinals to properties, compiles Regex patterns
-  - `SchemaRefResolver` — Resolves `$ref` pointers
-  - `SchemaWalker` — Orchestrates single-pass validation and offset table construction
-- Key files: `JsonContractSchema.cs`, `JsonSchemaLoader.cs`, `SchemaIndexer.cs`, `SchemaRefResolver.cs`, `SchemaWalker.cs`
-
-**`src/Gluey.Contract.Json/Validators/`:**
-- Purpose: Pluggable validation logic for each JSON Schema keyword family
-- Contains: 9 validator files, each with static methods for specific keyword(s)
-  - `KeywordValidator.cs` — type, enum, const validation
-  - `NumericValidator.cs` — min/max, multipleOf, exclusive bounds
-  - `StringValidator.cs` — minLength, maxLength, pattern
-  - `ArrayValidator.cs` — minItems, maxItems, uniqueItems
-  - `ObjectValidator.cs` — required, minProperties, maxProperties, properties/patternProperties
-  - `CompositionValidator.cs` — allOf, anyOf, oneOf, not
-  - `ConditionalValidator.cs` — if/then/else
-  - `DependencyValidator.cs` — dependentRequired, dependentSchemas
-  - `FormatValidator.cs` — format keyword assertion (when enabled)
-- Key files: All 9 `.cs` files
-
-**`tests/Gluey.Contract.Tests/`:**
-- Purpose: Unit tests for core data structures and functionality
-- Contains: Tests for OffsetTable, ErrorCollector, ParseResult, and core contract types
-- Naming convention: Test files named after tested class (e.g., `OffsetTableTests.cs`)
-
-**`tests/Gluey.Contract.Json.Tests/`:**
-- Purpose: Integration and unit tests for JSON parsing, loading, and validation
-- Contains: 40+ test classes covering:
-  - `JsonByteReaderTests.cs` — Tokenizer behavior
-  - `JsonSchemaLoadingTests.cs` — Schema compilation
-  - `JsonContractSchemaApiTests.cs` — Public Parse/Load API
-  - Keyword validator tests: `KeywordValidatorTypeTests.cs`, `KeywordValidatorEnumConstTests.cs`, `KeywordValidatorObjectTests.cs`, `KeywordValidatorArrayTests.cs`, etc.
-  - Feature tests: `NestedPropertyAccessTests.cs`, `ArrayElementAccessTests.cs`, etc.
-  - Allocation tests: `TryParseAllocationTests.cs`, `PropertyAccessAllocationTests.cs`, `DisposeAllocationTests.cs`
-- Naming convention: Test files named after feature/validator being tested
-
-**`benchmarks/Gluey.Contract.Benchmarks/`:**
-- Purpose: BenchmarkDotNet performance measurements (Gluey vs. STJ + JsonSchema.Net)
-- Contains: Benchmark classes measuring parse time and allocation across small/medium/large payloads
+**benchmarks/Gluey.Contract.Benchmarks:**
+- Purpose: Performance measurement against baselines (STJ + JsonSchema.Net)
+- Contains: BenchmarkDotNet suite comparing Gluey parse/validate with standard .NET approaches
+- Key file: `Program.cs` runs via `dotnet run --project ... -c Release`
 
 ## Key File Locations
 
 **Entry Points:**
-- `src/Gluey.Contract.Json/Schema/JsonContractSchema.cs` — `Load()`, `TryLoad()`, `Parse()`, `TryParse()` public methods
-- Schema loading begins here; single-pass parsing initiated here
+
+- `src/Gluey.Contract.Json/Schema/JsonContractSchema.cs` — TryLoad (returns bool) and Load (returns JsonContractSchema?) for schema loading; Parse (returns ParseResult?) for data parsing
 
 **Configuration:**
-- `src/Gluey.Contract/Schema/SchemaOptions.cs` — Schema loading options (error capacity, format assertion)
-- `src/Gluey.Contract.Json/Schema/JsonSchemaLoader.cs` — Parsing options for JSON Schema dialect
+
+- `src/Gluey.Contract/Schema/SchemaOptions.cs` — Options for AssertFormat mode (whether format keyword produces errors)
+- `src/Gluey.Contract/Schema/SchemaRegistry.cs` — Cross-schema $ref resolution registry (public but mutation is internal)
 
 **Core Logic:**
-- `src/Gluey.Contract.Json/Schema/SchemaWalker.cs` — Heart of single-pass validation; orchestrates all walking and validation
-- `src/Gluey.Contract/Parsing/ParsedProperty.cs` — Zero-allocation property accessor interface
-- `src/Gluey.Contract/Buffers/ArrayBuffer.cs` — Array element storage and thread-static caching
+
+- `src/Gluey.Contract.Json/Schema/SchemaWalker.cs` — Orchestrates single-pass validation against schema tree
+- `src/Gluey.Contract.Json/Reader/JsonByteReader.cs` — Tokenization with byte offset tracking
+- `src/Gluey.Contract.Json/Validators/KeywordValidator.cs` — Dispatcher to per-keyword validators
+
+**Data Model:**
+
+- `src/Gluey.Contract/Parsing/ParseResult.cs` — Composite result (OffsetTable + ErrorCollector + ArrayBuffer)
+- `src/Gluey.Contract/Parsing/ParsedProperty.cs` — Lazy byte accessor with materialization methods
+- `src/Gluey.Contract/Schema/SchemaNode.cs` — Immutable schema tree node
+- `src/Gluey.Contract/Validation/ValidationError.cs` — Error code + path + message + optional x-error metadata
+
+**Buffer & Memory:**
+
+- `src/Gluey.Contract/Buffers/ArrayBuffer.cs` — ArrayPool-backed storage for array elements
+- `src/Gluey.Contract/Parsing/OffsetTable.cs` — ArrayPool-backed store for (offset, length, path) per property
+- `src/Gluey.Contract/Validation/ErrorCollector.cs` — ArrayPool-backed error collection with overflow
 
 **Testing:**
-- `tests/Gluey.Contract.Json.Tests/JsonContractSchemaApiTests.cs` — Public API contract tests
-- `tests/Gluey.Contract.Json.Tests/AllocationTests/` — Allocation verification tests
-- Test fixtures defined inline (strings/bytes) or via `GlobalUsings.cs` shared imports
+
+- `tests/Gluey.Contract.Json.Tests/GlobalUsings.cs` — Global using imports for test projects (xUnit, Assertions)
+- `tests/Gluey.Contract.Json.Tests/AllocationTests/` — Verification of zero-allocation on hot path
 
 ## Naming Conventions
 
 **Files:**
-- Pascal case: `JsonContractSchema.cs`, `SchemaWalker.cs`, `ArrayValidator.cs`
-- Test files: `[TestedClass]Tests.cs` (e.g., `OffsetTableTests.cs`, `ArrayValidatorTests.cs`)
-- Internal helper files: `[Topic][Detail].cs` (e.g., `JsonReadError.cs`, `ValidationErrorCode.cs`)
+
+- `*.cs` — C# source files
+- `*Tests.cs` — Test classes (xUnit [Fact] and [Theory])
+- `*Validator.cs` — Keyword validator classes (e.g., TypeValidator, NumericValidator)
+- `*.csproj` — MSBuild project files
+- `.gitignore`, `.gitattributes` — Git configuration
+- `README.md`, `LICENSE`, `NOTICE` — Documentation
 
 **Directories:**
-- Feature-grouped: `Schema/`, `Parsing/`, `Validators/`, `Reader/`, `Buffers/`, `Validation/`
-- Package-scoped: Parallel structure in core (`Gluey.Contract`) and JSON plugin (`Gluey.Contract.Json`)
-- Test-mirrored: `tests/` mirror `src/` structure with parallel namespaces
+
+- `src/` — Shipping source code
+- `tests/` — Test projects (suffix with `.Tests`)
+- `benchmarks/` — Performance measurement code (suffix with `.Benchmarks`)
+- `Validators/` — Pluggable keyword validators (plural)
+- `Schema/` — Schema loading, resolution, parsing infrastructure
+- `Reader/` — Low-level tokenization and error types
+- `Parsing/` — Parsed data structures (ParseResult, ParsedProperty, OffsetTable)
+- `Validation/` — Error collection and reporting
+- `Buffers/` — Memory management (ArrayBuffer)
+- `AllocationTests/` — Memory profiling tests within test projects
 
 **Namespaces:**
-- Root: `Gluey.Contract` (core public API)
-- JSON format: `Gluey.Contract.Json` (public JSON API)
-- Tests: `Gluey.Contract.Tests`, `Gluey.Contract.Json.Tests`
 
-**Classes:**
-- Pascal case: `SchemaNode`, `ParsedProperty`, `ErrorCollector`, `JsonContractSchema`
-- Structs marked as data holders: `ParsedProperty`, `ParseResult`, `OffsetTable`, `ErrorCollector`
-- Ref structs for hot-path: `SchemaWalker`, `JsonByteReader`
-
-**Methods:**
-- Pascal case public: `Load()`, `Parse()`, `GetString()`, `Add()`
-- try- pattern for error handling: `TryLoad()`, `TryParse()`, `TryGetValue()`
-- Internal static factory: `Rent()`, `Walk()`
+- `Gluey.Contract` — Core library, public API
+- `Gluey.Contract.Json` — JSON implementation, public API
+- `Gluey.Contract.Json.Reader` — Internal tokenization types
+- `Gluey.Contract.Json.Schema` — Internal schema orchestration
+- `Gluey.Contract.Json.Validators` — Internal keyword validators
+- `Gluey.Contract.Json.Serialization` — Internal extension methods (ToJson, WriteJson)
 
 ## Where to Add New Code
 
-**New JSON Schema Keyword Validation:**
-1. Check if keyword family already covered in `src/Gluey.Contract.Json/Validators/`
-2. If new family: Create `[KeywordFamily]Validator.cs` in `Validators/` directory
-3. Implement static `Validate[Keyword]()` methods following existing pattern (return bool, push errors)
-4. Add dispatch call in `SchemaWalker` private walk methods (object walk, array walk, etc.)
-5. Add unit tests in `tests/Gluey.Contract.Json.Tests/[KeywordFamily]ValidatorTests.cs`
+**New Feature (e.g., new JSON Schema keyword support):**
+- Primary code: `src/Gluey.Contract.Json/Validators/` — Create `NewKeywordValidator.cs` implementing keyword validation
+- Schema model: `src/Gluey.Contract/Schema/SchemaNode.cs` — Add property for new keyword
+- Dispatcher: `src/Gluey.Contract.Json/Validators/KeywordValidator.cs` — Add case to dispatch to new validator
+- Error codes: `src/Gluey.Contract/Validation/ValidationErrorCode.cs` — Add enum value for new error
+- Messages: `src/Gluey.Contract/Validation/ValidationErrorMessages.cs` — Add message mapping
+- Tests: `tests/Gluey.Contract.Json.Tests/*Validator*Tests.cs` — Add test file for new keyword
 
-**New Format Parser (e.g., Protobuf, RESP):**
-1. Create new package: `src/Gluey.Contract.[Format]/`
-2. Mirror structure: `Reader/` (tokenizer), `Schema/` (format-specific schema loader and walker), `Validators/` (format-specific keyword validation if needed)
-3. Expose public API class (analogous to `JsonContractSchema`) that loads schema and exposes `Parse()` method
-4. Return `ParseResult` with same structure for uniform property access
-5. Create parallel test project: `tests/Gluey.Contract.[Format].Tests/`
+**New Wire Format (e.g., Protobuf, CSV):**
+- New package: Create `src/Gluey.Contract.Protobuf/Gluey.Contract.Protobuf.csproj`
+- Schema loader: `src/Gluey.Contract.Protobuf/Schema/ProtobufContractSchema.cs` — Parallel to JsonContractSchema
+- Tokenizer: `src/Gluey.Contract.Protobuf/Reader/ProtobufByteReader.cs` — Wire format specific tokenization
+- Walker: `src/Gluey.Contract.Protobuf/Schema/SchemaWalker.cs` — Orchestrate parse for format
+- Entry point: Expose `TryLoad` and `Parse` methods matching JsonContractSchema interface
+- Share: Reuse SchemaNode, ValidationError, ParseResult, ParsedProperty from core (Gluey.Contract)
 
-**New Shared Data Structure:**
-1. If applicable to multiple formats: Add to `src/Gluey.Contract/` (core)
-2. If JSON-specific: Add to `src/Gluey.Contract.Json/`
-3. Use ArrayPool for rented buffers; implement IDisposable if managing resources
-4. Use readonly struct for stack-allocation if possible (except Buffers which are thread-cached classes)
+**New Component/Utilities:**
+- Core abstractions: `src/Gluey.Contract/` — Add to appropriate subdirectory (Schema/, Parsing/, Validation/, Buffers/)
+- Format-specific: `src/Gluey.Contract.Json/` — Add to appropriate subdirectory (Schema/, Reader/, Validators/)
+- Always use `internal` for non-public types unless there's a reason for public API
 
-**New Public API Method:**
-1. On `JsonContractSchema.cs` for JSON, or equivalent format class
-2. Follow existing try-pattern or direct-return pattern for consistency
-3. Ensure never throws exceptions (exception-free API design)
-4. Add corresponding method to `IJsonContractSchema` (if interface exists) or follow convention
+**Tests:**
+- Unit tests: `tests/Gluey.Contract.Json.Tests/` — Create `YourFeatureTests.cs` with [Fact] and [Theory] methods
+- Allocation tests: `tests/Gluey.Contract.Json.Tests/AllocationTests/YourFeatureAllocationTests.cs` — Measure heap allocations with BenchmarkDotNet in AllocationMode
+- Global usings: Already configured in `GlobalUsings.cs`; run tests via `dotnet test`
 
-**New Test:**
-1. Test file location mirrors source location (e.g., `tests/Gluey.Contract.Json.Tests/[Feature]Tests.cs`)
-2. Use `[TestFixture]` on class, `[Test]` on methods (NUnit3 convention)
-3. Use FluentAssertions for readability
-4. Tests for hot-path features (validators, walkers) should verify zero allocation (see `AllocationTests/`)
-
-**Global Settings/Constants:**
-- Format-specific: `SchemaOptions.cs` in core, or equivalent in format package
-- Error messages: `ValidationErrorMessages.cs` with static lookup
+**Benchmarks:**
+- Location: `benchmarks/Gluey.Contract.Benchmarks/`
+- Pattern: Create benchmark class with [Benchmark] and [Params] attributes
+- Run: `dotnet run --project benchmarks/Gluey.Contract.Benchmarks -c Release`
 
 ## Special Directories
 
-**`src/Gluey.Contract/obj/`, `src/Gluey.Contract/bin/`:**
-- Purpose: Build output (compiled assemblies, debug symbols)
-- Generated: Yes
-- Committed: No (git-ignored)
-
-**`tests/*/obj/`, `tests/*/bin/`:**
-- Purpose: Test project build output
-- Generated: Yes
-- Committed: No (git-ignored)
-
-**`docs/`:**
-- Purpose: Documentation (API docs, architecture guides, design rationale)
-- Generated: No (manually maintained)
+**docs/:**
+- Purpose: Non-code documentation (design notes, architecture diagrams, etc.)
+- Generated: No
 - Committed: Yes
 
-**`.github/workflows/`:**
-- Purpose: GitHub Actions CI/CD pipeline definitions
-- Generated: No (manually maintained)
-- Committed: Yes
-- Key files: Main workflow for build, test, NuGet publish
+**bin/, obj/:**
+- Purpose: Build output and intermediate artifacts (auto-generated)
+- Generated: Yes (by MSBuild)
+- Committed: No (in .gitignore)
 
-**`benchmarks/Gluey.Contract.Benchmarks/obj/`, `benchmarks/Gluey.Contract.Benchmarks/bin/`:**
-- Purpose: Benchmark build output
+**.git/:**
+- Purpose: Git repository metadata
 - Generated: Yes
-- Committed: No (git-ignored)
+- Committed: N/A (system directory)
 
----
+## Assembly Structure
 
-*Structure analysis: 2026-03-18*
+**NuGet packages published:**
+
+- `Gluey.Contract` (v1.1.0) — Core validation engine
+  - References: System namespaces only
+  - Visibility: ErrorCollector, OffsetTable, ArrayBuffer are internal; public API is ParseResult, ParsedProperty, SchemaRegistry, SchemaNode (internal used by Json package via InternalsVisibleTo)
+
+- `Gluey.Contract.Json` (v1.1.0) — JSON Schema implementation
+  - References: Gluey.Contract
+  - Visibility: JsonContractSchema is public; SchemaWalker, JsonByteReader, validators are internal
+  - InternalsVisibleTo: Gluey.Contract.Json.Tests
+
+- `Gluey.Contract.AspNetCore` (planned)
+  - References: Gluey.Contract, Gluey.Contract.Json, Microsoft.AspNetCore.Http, Microsoft.AspNetCore.Mvc
+  - Will contain: Model binders, middleware, ProblemDetails serialization
+
+**Target Frameworks:**
+
+- `net9.0` — .NET 9
+- `net10.0` — .NET 10
+
+**Language Features:**
+
+- LangVersion: `13` (C# 13)
+- ImplicitUsings: `enable`
+- Nullable: `enable` (non-nullable reference types enabled)
+

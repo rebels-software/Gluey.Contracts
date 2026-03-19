@@ -1,68 +1,63 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-03-18
+**Analysis Date:** 2026-03-19
 
 ## Test Framework
 
 **Runner:**
 - NUnit 4.3.1
-- Config: `.csproj` files declare `<IsTestProject>true</IsTestProject>`
+- Config: No explicit `.nunit` file (uses project defaults via NUnit3TestAdapter)
+- Microsoft.NET.Test.Sdk 17.12.0 for test discovery and execution
+- NUnit3TestAdapter 4.6.0 for VS/CLI integration
 
 **Assertion Library:**
 - FluentAssertions 8.0.1
+- Provides chainable assertion syntax: `.Should().BeTrue()`, `.Should().Be(0)`, `.Should().BeEquivalentTo()`
+- Exception assertions: `.Should().NotThrow()` (line 250, `ArrayElementAccessTests.cs`)
 
 **Run Commands:**
 ```bash
-dotnet test                    # Run all tests
-dotnet test --watch           # Watch mode
-dotnet test --collect:"XPlat Code Coverage"  # Coverage
+dotnet test                                    # Run all tests
+dotnet test --watch                            # Watch mode (if supported)
+dotnet test -- --collect="XPlat Code Coverage" # Coverage with coverlet
 ```
 
-**Supporting Packages:**
-- `Microsoft.NET.Test.Sdk` 17.12.0 — test host
-- `NUnit3TestAdapter` 4.6.0 — NUnit adapter for VS/CLI
-- `coverlet.collector` 6.0.2 — code coverage collection
-- `NUnit.Analyzers` 4.5.0 — analyzer for test best practices
+**Coverage:**
+- coverlet.collector 6.0.2 included in test projects
+- XPlat format for cross-platform coverage collection
+- Coverage requirement: Not enforced (no minimum specified in project files)
 
 ## Test File Organization
 
 **Location:**
-- Co-located with source in parallel directory: `src/` and `tests/`
-- Two test projects: `Gluey.Contract.Tests` and `Gluey.Contract.Json.Tests`
-- Path: `tests/Gluey.Contract.Json.Tests/` mirrors `src/Gluey.Contract/`
+- Co-located in separate `tests/` directory parallel to `src/`
+- Structure mirrors source: `src/Gluey.Contract/` paired with `tests/Gluey.Contract.Tests/`
+- Subdirectories mirror implementation: `Buffers/`, `Parsing/`, `Schema/` in source → corresponding test files
+- Allocation tests grouped in subdirectory: `tests/Gluey.Contract.Json.Tests/AllocationTests/`
 
 **Naming:**
-- Test files: `[UnitUnderTest]Tests.cs`
-- Examples: `ArrayValidatorTests.cs`, `JsonContractSchemaApiTests.cs`, `DisposeAllocationTests.cs`
-- Test classes: same as filename (PascalCase with `Tests` suffix)
+- Class names: Implementation name + "Tests" suffix: `ArrayElementAccessTests`, `DisposeAllocationTests`
+- File names match class names: `ArrayElementAccessTests.cs`, `DisposeAllocationTests.cs`
+- Grouped by concern: allocation tests, validator tests, access pattern tests
 
 **Structure:**
 ```
-tests/Gluey.Contract.Json.Tests/
-├── AllocationTests/
-│   ├── DisposeAllocationTests.cs
-│   ├── FormatAssertionAllocationTests.cs
-│   ├── PropertyAccessAllocationTests.cs
-│   └── TryParseAllocationTests.cs
-├── ArrayElementAccessTests.cs
-├── ArrayValidatorTests.cs
-├── CompositionValidatorTests.cs
-├── ConditionalValidatorTests.cs
-├── ContainsValidatorTests.cs
-├── DependencyValidatorTests.cs
-├── FormatValidatorTests.cs
-├── JsonByteReaderTests.cs
-├── JsonContractSchemaApiTests.cs
-├── JsonSchemaLoadingTests.cs
-├── KeywordValidatorArrayTests.cs
-├── KeywordValidatorEnumConstTests.cs
-├── KeywordValidatorObjectTests.cs
-├── KeywordValidatorTypeTests.cs
-├── NestedPropertyAccessTests.cs
-├── NumericValidatorTests.cs
-├── OneOfArrayTests.cs
-├── SchemaWalkerCoverageTests.cs
-└── StringValidatorTests.cs
+tests/
+├── Gluey.Contract.Tests/
+│   ├── GlobalUsings.cs
+│   └── Gluey.Contract.Tests.csproj
+├── Gluey.Contract.Json.Tests/
+│   ├── GlobalUsings.cs
+│   ├── ArrayElementAccessTests.cs
+│   ├── ArrayValidatorTests.cs
+│   ├── AllocationTests/
+│   │   ├── DisposeAllocationTests.cs
+│   │   ├── FormatAssertionAllocationTests.cs
+│   │   ├── PropertyAccessAllocationTests.cs
+│   │   └── TryParseAllocationTests.cs
+│   └── Gluey.Contract.Json.Tests.csproj
+└── Gluey.Contract.AspNetCore.Tests/
+    └── ...
 ```
 
 ## Test Structure
@@ -70,190 +65,133 @@ tests/Gluey.Contract.Json.Tests/
 **Suite Organization:**
 ```csharp
 [TestFixture]
-public class ArrayValidatorTests
+public class ArrayElementAccessTests
 {
-    // ── ValidateMinItems ──────────────────────────────────────────────────
+    // ── Helpers ──────────────────────────────────────────────────────────
+
+    private static JsonContractSchema LoadSchema(string json)
+        => JsonContractSchema.Load(json)!;
+
+    private static byte[] Utf8(string json) => Encoding.UTF8.GetBytes(json);
+
+    // ── Basic array element access ──────────────────────────────────────
 
     [Test]
-    public void ValidateMinItems_CountAboveMinimum_ReturnsTrue()
+    public void ArrayElement_FirstElement_ReturnsCorrectValue()
     {
-        using var collector = new ErrorCollector();
-        ArrayValidator.ValidateMinItems(3, 2, "/tags", collector).Should().BeTrue();
-        collector.Count.Should().Be(0);
-    }
+        // Arrange
+        var schema = LoadSchema("""...""");
+        var data = Utf8("""...""");
 
-    [Test]
-    public void ValidateMinItems_CountAtMinimum_ReturnsTrue()
-    {
-        using var collector = new ErrorCollector();
-        ArrayValidator.ValidateMinItems(2, 2, "/tags", collector).Should().BeTrue();
-        collector.Count.Should().Be(0);
+        // Act
+        using var result = schema.Parse(data);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.Value["/tags"][0].HasValue.Should().BeTrue();
+        result.Value["/tags"][0].GetString().Should().Be("alpha");
     }
 }
 ```
 
 **Patterns:**
+- Helper methods at top of test class (lines 24-29): `LoadSchema()`, `Utf8()`
+- Comment sections organize tests by concern: `// ── Section Name ──────────────────────────`
+- Implicit Arrange-Act-Assert pattern (not always explicitly labeled)
+- Triple-slash documentation on test fixtures (lines 21-27 in `FormatAssertionAllocationTests.cs`)
+- Class-level setup via `[OneTimeSetUp]` for shared fixtures (line 59, `DisposeAllocationTests.cs`)
 
-1. **TestFixture attribute:** Every test class has `[TestFixture]`
-2. **Test method naming:** `[MethodName]_[Condition]_[Expected]`
-   - Examples:
-     - `ValidateMinItems_CountAboveMinimum_ReturnsTrue`
-     - `Parse_ValidInput_ReturnsNonNull`
-     - `Parse_ByteArray_MalformedJson_ReturnsNull`
-3. **Arrange-Act-Assert implied:** Tests use minimal setup; most are inline
-4. **Section headers:** Visual separators organize related test groups
-   ```csharp
-   // ── ValidateMinItems ──────────────────────────────────────────────────
-   ```
-5. **Single assertion per test:** Most tests verify one condition (FluentAssertions chains)
+**Setup/Teardown:**
+- `[OneTimeSetUp]` for class-level initialization: Lines 59-65 in `DisposeAllocationTests.cs`
+- `[SetUp]` pattern not observed (one-time setup sufficient for immutable test data)
+- Cleanup via `using` statements: Lines 49, 72 in `ArrayElementAccessTests.cs`
+- Dispose patterns tested explicitly: `result.Dispose()` called in test assertions
 
 ## Mocking
 
-**Framework:** Not used
+**Framework:**
+- No mocking library detected (no Moq, NSubstitute, etc.)
+- Codebase uses real objects and integration testing
 
 **Patterns:**
-- No mocks or stubs observed
-- Tests create real objects: `new ErrorCollector()`, `JsonContractSchema.Load(...)`
-- External state avoided; tests use in-memory test data
+- Allocation tests use real schema and real parsing: Lines 61-64 in `FormatAssertionAllocationTests.cs`
+- Test data as constants: `SchemaJson`, `PayloadJson` as `const string` (lines 35-46)
+- Warmup runs before measurement: Lines 61-64, 63-64 (two warmup passes for JIT stability)
 
 **What to Mock:**
-- Nothing explicitly; library is designed for unit testing without mocks
+- No mocks used (implementation doesn't require them)
 
 **What NOT to Mock:**
-- `ErrorCollector`, `ArrayBuffer`, `ParseResult` — test these as-is
-- `JsonContractSchema` — real schema loading required for contract tests
+- Schema objects (integration)
+- Parse results (low cost)
+- Error collectors (used in real validation)
 
 ## Fixtures and Factories
 
 **Test Data:**
-- Helper methods in test classes:
-  ```csharp
-  private static byte[] SampleJsonBytes => Encoding.UTF8.GetBytes("{\"name\":\"test\"}");
+```csharp
+private const string SchemaJson = """
+    {
+        "type": "object",
+        "properties": {
+            "email": { "type": "string", "format": "email" },
+            "date": { "type": "string", "format": "date" },
+            "uri": { "type": "string", "format": "uri" }
+        },
+        "required": ["email", "date", "uri"]
+    }
+    """;
 
-  private static JsonContractSchema CreateSchema() =>
-      JsonContractSchema.Load("""{"type":"object","properties":{"name":{"type":"string"}}}""")!;
+private const string PayloadJson = """{"email":"user@example.com","date":"2026-01-15","uri":"https://example.com"}""";
+```
 
-  private static JsonContractSchema LoadSchema(string json)
-      => JsonContractSchema.Load(json)!;
-
-  private static byte[] Utf8(string json) => Encoding.UTF8.GetBytes(json);
-  ```
-- Shared constants in test class:
-  ```csharp
-  private const string SchemaJson = """
-      {
-          "type": "object",
-          "properties": {
-              "name": { "type": "string" },
-              "age": { "type": "integer" }
-          }
-      }
-      """;
-  ```
+**Factory Methods:**
+- `LoadSchema(string json)`: Loads schema from JSON string, asserts non-null
+- `Utf8(string json)`: Converts JSON strings to UTF-8 byte arrays
+- Allocation measurement via helper: `MeasureAllocations(Action action)` (lines 48-57)
 
 **Location:**
-- Helpers as static private methods in test class: `private static JsonContractSchema CreateSchema()`
-- No separate fixture classes
-- Constants declared in test class body
-
-**Factory Pattern Example:**
-```csharp
-[TestFixture]
-public class JsonContractSchemaApiTests
-{
-    private static byte[] SampleJsonBytes =>
-        Encoding.UTF8.GetBytes("{\"name\":\"test\"}");
-
-    private static JsonContractSchema CreateSchema() =>
-        JsonContractSchema.Load("""{"type":"object","properties":{"name":{"type":"string"}}}""")!;
-
-    [Test]
-    public void Parse_ValidInput_ReturnsNonNull()
-    {
-        var schema = CreateSchema();
-        ReadOnlySpan<byte> data = SampleJsonBytes;
-        // ...
-    }
-}
-```
+- Test data defined in test class as `private const` fields
+- Reusable for both functional and allocation tests
+- Inline JSON with raw string literals (`"""..."""`) for clarity
 
 ## Coverage
 
 **Requirements:**
-- Not explicitly configured; no coverage threshold enforced
-- Coverlet collector included in test projects for manual coverage runs
-
-**View Coverage:**
-```bash
-dotnet test --collect:"XPlat Code Coverage" -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
-```
+- No minimum enforced (coverlet present but no rules configured)
+- Coverage collection available via: `dotnet test -- --collect="XPlat Code Coverage"`
 
 ## Test Types
 
 **Unit Tests:**
-- Scope: Individual validators (`ArrayValidator`, `StringValidator`, `TypeValidator`)
-- Approach: Direct method calls with `ErrorCollector` parameter
-- Example from `ArrayValidatorTests.cs`:
-  ```csharp
-  [Test]
-  public void ValidateMinItems_CountAboveMinimum_ReturnsTrue()
-  {
-      using var collector = new ErrorCollector();
-      ArrayValidator.ValidateMinItems(3, 2, "/tags", collector).Should().BeTrue();
-      collector.Count.Should().Be(0);
-  }
-  ```
+- Scope: Individual methods and simple integrations
+- Approach: Test one concern per test method
+- Examples: `ValidateMinItems_CountAboveMinimum_ReturnsTrue()` (single validator)
+- Examples: `ArrayElement_FirstElement_ReturnsCorrectValue()` (single accessor pattern)
 
 **Integration Tests:**
-- Scope: Full schema parsing and validation pipeline
-- Files: `JsonContractSchemaApiTests.cs`, `JsonSchemaLoadingTests.cs`
-- Approach: Load schema from JSON, parse test data, verify errors
-- Example from `JsonContractSchemaApiTests.cs`:
-  ```csharp
-  [Test]
-  public void Parse_ByteArray_ValidInput_ReturnsResult()
-  {
-      var schema = CreateSchema();
-      var data = SampleJsonBytes;
+- Scope: Full schema loading, parsing, validation pipeline
+- Approach: Real objects, end-to-end flow
+- Examples: `ArrayElement_ArrayOfObjects_NestedAccess()` (parsing + nested access + type materialization)
+- Examples: `Parse_WithFormatAssertion_AllocationBudget()` (schema load + parse + validation)
 
-      using var result = schema.Parse(data);
-
-      result.Should().NotBeNull();
-      result!.Value.IsValid.Should().BeTrue();
-      result.Value["/name"].HasValue.Should().BeTrue();
-  }
-  ```
-
-**Allocation Regression Tests:**
-- Scope: Zero-allocation guarantees
-- Files: `AllocationTests/` subdirectory
-- Approach: Use `GC.GetAllocatedBytesForCurrentThread()` to assert allocation budgets
-- Example from `TryParseAllocationTests.cs`:
-  ```csharp
-  [Test]
-  public void TryParse_ByteArray_ZeroAllocationAfterWarmup()
-  {
-      // Warmup
-      var schema = _schema;
-      var payload = _payload;
-      schema.Parse(payload);
-
-      // Measure
-      var before = GC.GetAllocatedBytesForCurrentThread();
-      using var result = schema.Parse(payload);
-      var after = GC.GetAllocatedBytesForCurrentThread();
-
-      (after - before).Should().BeLessThanOrEqualTo(AllocationBudget);
-  }
-  ```
+**Allocation Tests:**
+- Special category for performance validation
+- Organized in `AllocationTests/` subdirectory
+- Patterns: GC tracking, warmup runs, allocation budget assertions
+- Implementation: `GC.GetAllocatedBytesForCurrentThread()` for precise measurement (lines 53, 66-70)
+- Assertion: `.Should().Be(0)`, `.Should().BeLessThan(2000)` for budget validation
 
 **E2E Tests:**
-- Not explicitly used; integration tests cover end-to-end scenarios
+- Not present (not needed for library code)
+- Integration tests serve as end-to-end validation
 
 ## Common Patterns
 
 **Async Testing:**
-- No async tests observed (library is synchronous)
+- No async/await patterns detected
+- Library is synchronous
+- Blocking calls on results: `result!.Value` (synchronous)
 
 **Error Testing:**
 ```csharp
@@ -270,110 +208,63 @@ public void ValidateMinItems_CountBelowMinimum_ReturnsFalse()
 }
 ```
 
-**IDisposable Testing:**
+**Patterns:**
+- Error collector approach: Methods return `bool`, errors collected in output parameter
+- Validation errors indexed: `collector[0]` for assertion
+- Path tracking: Every error includes `.Path` property
+- Error codes: `ValidationErrorCode` enum for classification
+
+**Boundary Testing:**
 ```csharp
 [Test]
-public void Parse_ValidInput_ResultIsValid()
+public void ArrayElement_OutOfBounds_ReturnsEmpty() { ... }
+
+[Test]
+public void ArrayElement_NegativeIndex_ReturnsEmpty() { ... }
+
+[Test]
+public void ValidateMinItems_ZeroCountZeroMin_ReturnsTrue() { ... }
+```
+
+**Pattern:** Explicit tests for boundary conditions, not combined with happy path
+
+**Double-Dispose Safety:**
+```csharp
+[Test]
+public void ParseResult_DoubleDispose_DoesNotThrow()
 {
-    var schema = CreateSchema();
-    ReadOnlySpan<byte> data = SampleJsonBytes;
+    var r = result!.Value;
+    var act = () =>
+    {
+        r.Dispose();
+        r.Dispose();
+    };
 
-    using var result = schema.Parse(data);
-
-    result.Should().NotBeNull();
-    result!.Value.IsValid.Should().BeTrue();
-    result.Value.Errors.Count.Should().Be(0);
+    act.Should().NotThrow();
 }
 ```
 
-**Null/Empty Testing:**
+**Pattern:** Lambda capture for exception assertion, idempotency verified
+
+**Resource Cleanup:**
 ```csharp
 [Test]
-public void Parse_ByteArray_MalformedJson_ReturnsNull()
+public void Dispose_AllocatesZeroBytes()
 {
-    var schema = CreateSchema();
-    var data = Encoding.UTF8.GetBytes("{bad json");
+    var parsed = _schema.Parse(_payload);
+    var result = parsed!.Value;
 
-    var result = schema.Parse(data);
+    var bytes = MeasureAllocations(() =>
+    {
+        result.Dispose();
+    });
 
-    result.Should().BeNull();
+    bytes.Should().Be(0, "Dispose should be zero-allocation (ArrayPool return only)");
 }
 ```
 
-**Multi-condition Testing:**
-```csharp
-[Test]
-public void TryLoad_WithUnresolvableRef_ReturnsFalse()
-{
-    var success = JsonContractSchema.TryLoad(
-        """{"properties":{"x":{"$ref":"#/$defs/missing"}}}""",
-        out var schema);
-
-    success.Should().BeFalse();
-    schema.Should().BeNull();
-}
-```
-
-**Xml String Literals:**
-```csharp
-[Test]
-public void Load_FromString_InvalidJson_ReturnsNull()
-{
-    var result = JsonContractSchema.Load("""
-        {
-            "type": "object",
-            "properties": {
-                "tags": {
-                    "type": "array",
-                    "items": { "type": "string" }
-                }
-            }
-        }
-        """);
-
-    result.Should().NotBeNull();
-}
-```
-
-## Test Lifecycle
-
-**Setup/Teardown:**
-- Tests are standalone; no shared setup observed
-- Field initialization per-test (NUnit default): `private JsonContractSchema _schema = null!;`
-- `Setup` attributes: Not used; tests initialize inline or via helper methods
-- Cleanup via `using` statements: `using var collector = new ErrorCollector();`
-
-**Warmup Pattern:**
-Tests perform warmup before measuring allocations:
-```csharp
-// Warmup
-var schema = _schema;
-var payload = _payload;
-schema.Parse(payload);
-
-// Measure
-var before = GC.GetAllocatedBytesForCurrentThread();
-using var result = schema.Parse(payload);
-var after = GC.GetAllocatedBytesForCurrentThread();
-```
-
-## Test Projects Configuration
-
-**Gluey.Contract.Json.Tests.csproj:**
-- Location: `tests/Gluey.Contract.Json.Tests/`
-- References: `Gluey.Contract.Json` project
-- Dependencies: NUnit, FluentAssertions, coverlet, analyzers
-
-**Gluey.Contract.Tests.csproj:**
-- Location: `tests/Gluey.Contract.Tests/`
-- References: `Gluey.Contract` project
-- Same dependencies as above
-
-Both projects:
-- Target frameworks: `net9.0;net10.0`
-- C# 13, implicit usings, nullable enabled
-- Marked as `IsTestProject` and not packable
+**Pattern:** Allocation measurement with clear error messages explaining the contract
 
 ---
 
-*Testing analysis: 2026-03-18*
+*Testing analysis: 2026-03-19*

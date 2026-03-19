@@ -1,80 +1,80 @@
 # External Integrations
 
-**Analysis Date:** 2026-03-18
+**Analysis Date:** 2026-03-19
 
 ## APIs & External Services
 
-**None - This is a library, not a service consumer.**
+**Not applicable.**
 
-Gluey.Contract is a standalone .NET library for schema-driven validation. It does not depend on or integrate with external APIs or services.
+Gluey.Contract is a standalone validation library with no external API or service dependencies.
 
 ## Data Storage
 
-**Databases:** Not applicable
+**Databases:**
+- None - This is a client-side parsing and validation library
 
-**File Storage:** Not applicable - operates entirely in-memory on provided byte buffers
+**File Storage:**
+- Local filesystem only — Reads JSON/binary files from disk via standard `System.IO`
+- No cloud storage integration
 
-**Caching:** Not applicable
+**Caching:**
+- Memory pooling via `ArrayPool<T>` (built-in .NET)
+- Thread-static `ArrayBuffer` cache for reuse across parse operations
+- No Redis, Memcached, or other caching services
 
 ## Authentication & Identity
 
-**Auth Provider:** Not applicable
-
-This library does not authenticate with external services.
+**Auth Provider:**
+- Not applicable — Library operates on raw bytes without identity/auth requirements
 
 ## Monitoring & Observability
 
-**Error Tracking:** Not integrated
+**Error Tracking:**
+- None — Library returns validation errors in-process via `ValidationError` structures
+- No Sentry, Application Insights, or external error reporting
 
-Code coverage is reported to **codecov.io** via GitHub Actions:
-- CI environment variable: `CODE_COV_TOKEN`
-- Used by workflow: `.github/workflows/main.yml`
-- Triggered on: Build success, reported via coverlet.collector
-
-**Logs:** Not applicable
-
-The library uses no logging framework. Error information is returned via `ValidationError` objects with error codes and messages.
+**Logs:**
+- No logging framework integrated
+- Errors are structured in-memory as `ValidationError` objects with RFC 6901 JSON Pointer paths
+- Consumer code is responsible for logging/reporting errors
 
 ## CI/CD & Deployment
 
-**Hosting:** NuGet.org package registry
+**Hosting:**
+- NuGet package repository (nuget.org)
+- Published via GitHub package workflow
 
-**CI Pipeline:** GitHub Actions
+**CI Pipeline:**
+- GitHub Actions (https://github.com/rebels-software/gluey-contracts/actions)
+- Workflow file: `.github/workflows/main.yml`
+- Workflow steps:
+  - Build and test (NET 9.0 and 10.0) via shared workflow `rebels-software/github-actions/.github/workflows/build-and-test.yaml@v1.1.0`
+  - Code coverage reporting via `CODE_COV_TOKEN` secret to codecov.io
+  - Automatic version tag creation via `create-version-tag.yaml@v1.1.0`
+  - NuGet publishing via `publish-nuget.yaml@v1.1.0`
+- Build configuration: Debug and Release for Any CPU, x64, x86 architectures
 
-Workflow file: `.github/workflows/main.yml`
-
-**Build & Test:**
-- Triggered on: Push to main, tags matching `contract/v*` or `contract-json/v*`, pull requests to main
-- Uses shared workflows from: `rebels-software/github-actions@v1.1.0`
-  - `build-and-test.yaml` - Builds and tests against .NET 9.0.x and 10.0.x
-  - `create-version-tag.yaml` - Auto-generates version tags from project files
-  - `publish-nuget.yaml` - Publishes packages to NuGet.org
-
-**Publishing:**
-- Packages: `Gluey.Contract` and `Gluey.Contract.Json`
-- Trigger: Push to version tags or after successful build on main branch
-- Authentication: `NUGET_API_KEY` secret
-- Target: NuGet.org (public package feed)
+**Secrets Required (in CI environment):**
+- `CODE_COV_TOKEN` - Codecov.io code coverage token
+- `NUGET_API_KEY` - NuGet.org publishing API key
 
 ## Environment Configuration
 
 **Required env vars:**
-- `CI` - Set to `true` to enable continuous integration build mode (applies source embedding and deterministic builds)
-- `NUGET_API_KEY` - GitHub Actions secret for NuGet.org publishing
-- `CODE_COV_TOKEN` - GitHub Actions secret for codecov.io integration
+- None for runtime operation
+- CI environment: `CI` flag signals continuous integration build mode
 
 **Secrets location:**
-- GitHub Actions secrets (repository settings)
-- Never committed to version control
+- GitHub repository secrets (not in codebase)
 
 ## Webhooks & Callbacks
 
-**Incoming:** Not applicable
+**Incoming:**
+- None
 
 **Outgoing:**
-- GitHub Actions triggers NuGet.org publish API when packages are ready
-- Codecov.io webhook integration for coverage reporting
+- None
 
 ---
 
-*Integration audit: 2026-03-18*
+*Integration audit: 2026-03-19*

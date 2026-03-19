@@ -1,163 +1,157 @@
 # Coding Conventions
 
-**Analysis Date:** 2026-03-18
+**Analysis Date:** 2026-03-19
 
 ## Naming Patterns
 
 **Files:**
-- PascalCase for all C# files: `SchemaNode.cs`, `ArrayValidator.cs`, `ErrorCollector.cs`
-- Test files follow same pattern with `Tests` suffix: `ArrayValidatorTests.cs`, `JsonContractSchemaApiTests.cs`
-- Directory names are PascalCase: `Validation/`, `Buffers/`, `Parsing/`, `Schema/`
+- Pascal case for class files: `ArrayBuffer.cs`, `ParseResult.cs`, `SchemaNode.cs`
+- Pascal case matching class name inside: `OffsetTable.cs` contains `public struct OffsetTable`
+- Subdirectory names are Pascal case by feature/area: `Buffers/`, `Parsing/`, `Schema/`, `Validation/`
+- Test files match implementation name with "Tests" suffix: `ArrayElementAccessTests.cs` for `ArrayBuffer` functionality
+- Allocation test files use domain-specific naming: `DisposeAllocationTests.cs`, `FormatAssertionAllocationTests.cs`
 
-**Functions/Methods:**
-- PascalCase for all public and internal methods: `ValidateMinItems()`, `Add()`, `GetEnumerator()`, `Dispose()`
-- Helper methods follow same convention: `BuildChildPath()`, `TryGetValue()`, `MoveNext()`
+**Classes and Types:**
+- Pascal case for all public types: `ParseResult`, `SchemaNode`, `ArrayBuffer`, `ParsedProperty`
+- Sealed classes for implementation isolation: `sealed class SchemaNode`, `public sealed class SchemaOptions`
+- Structs used for hot-path value types (zero-allocation): `readonly struct ParseResult`, `readonly struct ParsedProperty`, `struct OffsetTable`
+- Nested types use Pascal case: `PropertyEntry`, `Enumerator`, `ArrayEnumerator`
+
+**Methods:**
+- Pascal case for all public methods: `GetString()`, `GetInt32()`, `GetBoolean()`, `MoveNext()`
+- Boolean methods use `Get` or predicate names: `HasValue` (property), `MoveNext()` (method)
+- Static factory methods: `Rent()`, `Return()`, `LoadSchema()`, `Load()`
+- Helper methods use lowercase prefixed names: `LoadSchema()` as private helper in tests
+
+**Properties:**
+- Pascal case for public properties: `Path`, `IsValid`, `Count`, `RawBytes`
+- `Is*` prefix for boolean properties: `IsValid`, `HasValue`
+- Auto-property syntax with `{ get; }` or `{ get; init; }`: Lines 82, 236-239 in `ParsedProperty.cs`
 
 **Variables:**
-- camelCase for local variables and parameters: `count`, `element`, `arrayOrdinal`, `collector`
-- underscore prefix for private fields: `_errors`, `_capacity`, `_offsetTable`, `_count`
-- UPPER_SNAKE_CASE for public constants: `DefaultCapacity`
-- `t_` prefix for thread-static fields: `t_cached`
+- Camel case for local variables and parameters: `initialCapacity`, `maxOrdinal`, `elementIndex`, `arrayOrdinal`, `childTable`
+- Thread-static fields use `t_` prefix: `t_cached` in `ArrayBuffer.cs` line 36
+- Private fields use `_` prefix: `_entries`, `_offset`, `_length`, `_buffer`, `_childTable`, `_arrayOrdinal`
+- Generic type parameters use single uppercase letters: `T` in `ArrayPool<T>`
 
-**Types:**
-- PascalCase for all class and struct names: `SchemaNode`, `ParseResult`, `ErrorCollector`, `ArrayBuffer`
-- PascalCase for enums and enum values: `ValidationErrorCode`, `SchemaType`
-- Interface names use `I` prefix with PascalCase: (when used)
-- Sealed classes marked explicitly: `internal sealed class SchemaNode`
-
-**Namespace:**
-- Root namespace: `Gluey.Contract`
-- Test namespaces append `.Tests`: `Gluey.Contract.Json.Tests`, `Gluey.Contract.Tests`
-- Sub-namespaces not used; organize by directory
+**Constants:**
+- Uppercase with underscores for logical constants: Appears in test fixtures as `SchemaJson`, `PayloadJson`
+- `const string` used for test JSON literals: Lines 35-44 in `FormatAssertionAllocationTests.cs`
 
 ## Code Style
 
 **Formatting:**
-- No explicit formatter config found; code uses standard C# conventions
-- 4-space indentation (standard)
-- Opening braces on same line (K&R style): `public void Dispose() { ... }`
-- One statement per line
+- LangVersion: C# 13 specified in all `.csproj` files
+- ImplicitUsings: Enabled in all projects
+- Nullable: Enabled in all projects (strict null checking)
+- 4-space indentation (inferred from code samples)
+- Braces on same line (K&R style): `if (...)\n{\n    // body\n}`
+- Multi-line method parameters when many: `SchemaNode` constructor spans lines 226-291 with parameters grouped by comment sections
 
 **Linting:**
-- Language version: C# 13 (set in `.csproj` via `<LangVersion>13</LangVersion>`)
-- Implicit using statements enabled: `<ImplicitUsings>enable</ImplicitUsings>`
-- Nullable reference types enforced: `<Nullable>enable</Nullable>`
-- No external analyzer config files found; relies on compiler defaults
+- NUnit.Analyzers package included in all test projects (version 4.5.0)
+- Implicit analyzer rules enforced via package reference with PrivateAssets
+- No explicit `.editorconfig` file detected (using C# 13 defaults)
 
-**Access Modifiers:**
-- Explicitly specify access level for all members (never rely on defaults)
-- `internal` heavily used for implementation hiding: `internal sealed class SchemaNode`
-- `internal` for test-visible types: `InternalsVisibleTo` attributes grant test assembly access
-- `public` only for public API surface
-- `private` for internal state and helper methods
-- Property-level access specification: `internal string Path { get; }` (get-only properties common)
+**Null Handling:**
+- Pattern matching for null checks: `if (...is not null)`, `if (...is null)`
+- Null-coalescing and null-conditional: `?`, `??`
+- Used throughout for safe navigation: Line 126-127 in `ParsedProperty.cs`
 
 ## Import Organization
 
 **Order:**
-1. System namespaces: `using System.Text;`, `using System.Buffers;`
-2. System.Collections and extensions: `using System.Collections;`
-3. Framework libraries: (rarely used)
-4. Local project namespaces: `using Gluey.Contract;`
-5. Test-specific: `using FluentAssertions;`, `using NUnit;`
-
-**Path Aliases:**
-- No aliases used; fully qualified names throughout
-- Namespace imports are flat (no nesting)
+1. System namespace imports: `using System.Buffers;`, `using System.Text;`
+2. System.* sub-namespaces: `using System.Buffers.Text;`, `using System.Runtime.CompilerServices;`
+3. Project-local imports: `using Gluey.Contract;`, `using Gluey.Contract.Json;`
+4. Global usings in test projects (via `GlobalUsings.cs`)
 
 **Global Usings:**
-- Not observed in analyzed files; each file declares required usings
+- Test projects define global usings in dedicated file: `GlobalUsings.cs` in test directories
+- Includes test framework and assertion library: `global using NUnit.Framework;`, `global using FluentAssertions;`
+- Enables clean test file headers without import clutter
+
+**Namespaces:**
+- File-scoped namespaces: `namespace Gluey.Contract;` (single file per namespace, no nesting)
+- Test namespaces mirror implementation with `.Tests` suffix: `namespace Gluey.Contract.Json.Tests;`
+- Sub-namespaces for test organization: `namespace Gluey.Contract.Json.Tests.AllocationTests;`
 
 ## Error Handling
 
 **Patterns:**
-- Result types (nullable returns) preferred over exceptions: `JsonContractSchema.Load()` returns `null` on error
-- Boolean returns for validation: `bool result = ArrayValidator.ValidateMinItems(...)`
-- Sentinel error handling: `ValidationErrorCode.TooManyErrors` used to cap error collection
-- No throw statements observed in hot paths; errors collected via `ErrorCollector`
-- Defensive null-checking: `if (_errors is not null && _countHolder is not null)`
+- Graceful degradation over exceptions: Methods return empty/default values instead of throwing
+- Indexers return `ParsedProperty.Empty` for out-of-bounds or missing data: Lines 200-206 in `ArrayBuffer.cs`
+- Boolean return patterns for validation: `bool ValidateMinItems()` returns false with error collection
+- Null checks use bounds validation: `(uint)ordinal < (uint)_capacity` for safe unchecked bounds (line 57, `OffsetTable.cs`)
+- IDisposable pattern for resource cleanup: All buffer-holding types implement `IDisposable`
+- Safe double-dispose: Null checks prevent re-processing: Lines 230-234 in `ArrayBuffer.cs`
 
-**Error Communication:**
-- `ValidationError` struct holds: `Code`, `Path`, and message string
-- `ErrorCollector` exposes errors via indexer: `collector[index]`
-- Boolean + side-effect pattern: methods return `bool` and populate error collector
-
-## Logging
-
-**Framework:** No logging observed (zero-allocation library constraint)
-
-**Patterns:**
-- No console.WriteLine or ILogger usage
-- Errors surfaced via `ErrorCollector` return value
-- Comments document intentional behavior instead
+**Exception Usage:**
+- Throws only for truly exceptional setup failures: `InvalidOperationException` in test setup (line 63, `FormatAssertionAllocationTests.cs`)
+- Never throws during parsing/validation (public API contract)
+- Internal operations may throw for programming errors (private methods can validate contracts)
 
 ## Comments
 
 **When to Comment:**
-- Document complex allocations or performance constraints
-- Explain invariants: `// Region tracking: ArrayPool-backed arrays instead of Dictionary<int, (int,int)>`
-- Clarify encoding behavior: `// RFC 6901: encode ~ as ~0, / as ~1 (order matters — ~ first!)`
-- Section headers using visual separators: `// ── ValidateMinItems ──────────────────────────────────────────────────`
+- Every public type has a triple-slash summary: Line 19 in `ArrayBuffer.cs`
+- Every public property/method has documentation: Lines 19-23 for class, lines 47-50 for constructor
+- Remarks sections explain non-obvious constraints: Line 25-31 in `SchemaOptions.cs`
+- Implementation comments for complex logic: Lines 93-97 in `ArrayBuffer.cs`
 
-**JSDoc/TSDoc:**
-- XML documentation comments (`///`) used extensively for public/internal APIs
-- Summary tags: `/// <summary>Description here.</summary>`
-- Param tags: `/// <param name="ordinal">The schema-determined ordinal for the property.</param>`
-- Return tags: `/// <returns>True if valid, false otherwise.</returns>`
-- Remarks tags for behavior details: `/// <remarks>Implementations are zero-allocation after warmup.</remarks>`
-- Example:
-  ```csharp
-  /// <summary>
-  /// Adds a <see cref="ValidationError"/> to the collector.
-  /// When the buffer is full, the last slot is replaced with a TooManyErrors sentinel
-  /// and further errors are silently dropped.
-  /// </summary>
-  /// <param name="error">The validation error to add.</param>
-  public void Add(ValidationError error)
-  ```
+**JSDoc/TSDoc (C# XML Documentation):**
+- Triple-slash summaries: `/// <summary>...</summary>`
+- Param descriptions: `/// <param name="ordinal">...</param>`
+- Remarks for additional context: `/// <remarks>...</remarks>`
+- Inline code references: `<see cref="ParsedProperty"/>`, `<see cref="IDisposable"/>`
+- Code snippets in comments: `<c>true</c>` for inline code literals
+
+**Section Comments:**
+- Horizontal visual dividers in implementation: `// ── Section Name ──────────────────────────`
+- Used to organize logical sections in large classes
+- Helps readability of classes with many methods (e.g., `SchemaNode.cs` lines 26-402)
 
 ## Function Design
 
 **Size:**
-- Methods typically 5-30 lines; larger functions broken into logical sections
-- Hot-path methods optimized for inlining (short, simple logic)
-- Example: `public bool IsValid => !_errorCollector.HasErrors;` (property, single statement)
+- Methods generally 10-50 lines of code
+- Simple accessors as single-liners: `public bool HasValue => _length > 0;` (line 110, `ParsedProperty.cs`)
+- Larger methods document flow: `SchemaNode` constructor (lines 226-344) documents parameter grouping
+- Complex logic broken into sections with comments
 
 **Parameters:**
-- Pass by value for small types (int, bool): `ValidateMinItems(3, 2, "/tags", collector)`
-- Pass by ref for spans/large buffers (rarely seen in samples)
-- Parameters explicitly typed (no var for parameters)
-- No default parameter values observed
+- Parameters grouped by logical function in constructors
+- Optional parameters with defaults: `internal static ArrayBuffer Rent(int initialCapacity = 16, int maxOrdinal = 16)` (line 71)
+- Named parameters encouraged in call sites: `ArrayPool<ParsedProperty>.Shared.Rent(initialCapacity)` (line 56)
 
 **Return Values:**
-- Boolean for success/failure
-- Nullable return for objects: `JsonContractSchema.Load(...) => JsonContractSchema?`
-- Struct return for lightweight wrappers: `public ParseResult this[int ordinal]`
-- Out parameters used with bool pattern: `TryLoad(json, out var schema)`
+- Methods return `bool` for validation/checks: `ValidateMinItems()` returns `bool`
+- Indexers return value types (structs): `ParsedProperty this[int ordinal]` returns struct
+- Nullable returns for optional values: `Dictionary<string, SchemaNode>?` fields in `SchemaNode`
+- Sentinel patterns for "not found": `ParsedProperty.Empty` as default instance (line 254)
 
 ## Module Design
 
 **Exports:**
-- Single public type per file (convention observed, not enforced): `SchemaNode.cs` exports `SchemaNode`
-- Public nested types allowed: `ParseResult.Enumerator` nested in `ParseResult`
-- Internal types in separate files for organization
+- Public API surface via public types in main namespace: `Gluey.Contract`
+- Internal types for implementation details: `internal class ArrayBuffer`, `internal sealed class SchemaNode`
+- Structs are `public` or `internal` based on API needs: `public struct ParseResult`, `internal struct OffsetTable`
 
 **Barrel Files:**
-- Not observed; no index files or aggregating exports
-- Each file stands alone
+- Not used in this codebase (each file defines single type)
+- Namespace organization via directory structure instead
 
-## Struct vs Class Decisions
+**File Organization:**
+- One primary type per file
+- Nested types within same file: `PropertyEntry` nested in `SchemaNode.cs`, `Enumerator` nested in `ParseResult.cs`
+- Test helper methods at top of class (lines 24-29 in `ArrayElementAccessTests.cs`)
 
-**Struct Usage (ValueType):**
-- `ParseResult`: lightweight wrapper, passed by value, implements `IDisposable`
-- `ErrorCollector`: error collection struct, pooled for zero-allocation
-- `ValidationError`: simple data holder
-- Enumerators: `ParseResult.Enumerator` is struct (enables foreach without allocation)
-
-**Class Usage (RefType):**
-- `ArrayBuffer`: shared by reference, stateful, pooled/cached
-- `SchemaNode`: immutable tree node, large, allocated once at schema load time
+**Visibility Modifiers:**
+- `public` for API surface
+- `internal` for same-assembly implementation details
+- `private` for class-private methods and fields
+- No `protected` (sealed classes prevent inheritance)
 
 ---
 
-*Convention analysis: 2026-03-18*
+*Convention analysis: 2026-03-19*

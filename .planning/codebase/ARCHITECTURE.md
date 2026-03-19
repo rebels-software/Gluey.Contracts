@@ -1,195 +1,193 @@
 # Architecture
 
-**Analysis Date:** 2026-03-18
+**Analysis Date:** 2026-03-19
 
 ## Pattern Overview
 
-**Overall:** Single-Pass Schema-Driven Validation with Zero-Allocation Offset Indexing
+**Overall:** Single-Pass Validation and Indexing Pipeline
 
 **Key Characteristics:**
-- Single-pass validation and indexing of raw UTF-8 bytes (no deserialization)
-- Zero heap allocation during parse path using ArrayPool-backed buffers
-- RFC 6901 JSON Pointer paths for all validation errors and property access
-- Immutable, pre-compiled schema trees loaded at startup
-- Modular validator plug-in architecture (one validator per JSON Schema keyword family)
-- Two-phase architecture: schema loading/compilation (startup), then single-pass walking (hot path)
+- **Zero-allocation parsing** — Schema-aware single-pass validation of raw bytes with deferred value materialization
+- **Format-agnostic interface** — Same API regardless of wire format (JSON, Protobuf, etc.)
+- **Offset-based lazy access** — ParsedProperty wraps byte offset/length; values materialize only on access
+- **Pooled buffer management** — ArrayPool-backed buffers for offset tables, error collectors, and array storage with thread-static caching
 
 ## Layers
 
-**Schema Layer:**
-- Purpose: Compile and validate JSON Schema documents at startup, build hierarchical schema tree
-- Location: `src/Gluey.Contract/Schema/`, `src/Gluey.Contract.Json/Schema/`
-- Contains: `SchemaNode` (immutable tree), `JsonSchemaLoader` (parses JSON Schema), `SchemaIndexer` (ordinal assignment), `SchemaRefResolver` (resolves `$ref`), `SchemaRegistry` (cross-schema references)
-- Depends on: Nothing (pure schema compilation)
-- Used by: JSON walking/validation engine, all consumers loading schemas
+**Schema Loading Layer (Build-time):**
+- Purpose: Parse JSON Schema definitions into an immutable tree model
+- Location: `src/Gluey.Contract.Json/Schema/JsonSchemaLoader.cs`, `src/Gluey.Contract/Schema/SchemaNode.cs`
+- Contains: Schema tree construction, reference resolution ($ref, $defs, $anchor), ordinal assignment
+- Depends on: System JSON parsing (Utf8JsonReader)
+- Used by: JsonContractSchema factory methods (TryLoad/Load)
 
-**Byte Reading Layer:**
-- Purpose: Tokenize raw UTF-8 bytes into logical JSON tokens while tracking byte offsets
-- Location: `src/Gluey.Contract.Json/Reader/`
-- Contains: `JsonByteReader` (wraps `Utf8JsonReader`, tracks byte offsets), `JsonByteTokenType` (enum), `JsonReadError`/`JsonReadErrorKind`
-- Depends on: System.Text.Json
-- Used by: SchemaWalker during single-pass validation
+**Reference Resolution Layer (Post-load):**
+- Purpose: Resolve cross-schema and intra-schema references before parsing begins
+- Location: `src/Gluey.Contract.Json/Schema/SchemaRefResolver.cs`
+- Contains: $ref target lookup, $anchor navigation, URI-based registry lookups
+- Depends on: SchemaNode, SchemaRegistry
+- Used by: JsonContractSchema.TryLoad before SchemaIndexer
 
-**Validation Layer:**
-- Purpose: Validate JSON tokens against schema keywords in isolation; compose into full validation
-- Location: `src/Gluey.Contract.Json/Validators/`
-- Contains: Specialized validators for each keyword family (type, enum, const, numeric ranges, strings, arrays, objects, composition, conditionals, dependencies, formats)
-- Depends on: `SchemaNode`, `JsonByteReader`
-- Used by: SchemaWalker to validate individual tokens/properties
+**Ordinal Assignment Layer (Post-resolve):**
+- Purpose: Assign zero-based property indices for OffsetTable storage before parsing begins
+- Location: `src/Gluey.Contract.Json/Schema/SchemaIndexer.cs`
+- Contains: Tree walk to number all named properties, construct name-to-ordinal mapping
+- Depends on: SchemaNode
+- Used by: JsonContractSchema constructor to size OffsetTable
 
-**Walking/Indexing Layer:**
-- Purpose: Orchestrate single-pass walk, dispatch to validators, build offset table for property access
+**Tokenization Layer (Parse-time, hot path):**
+- Purpose: Low-level JSON token stream with byte offset/length tracking
+- Location: `src/Gluey.Contract.Json/Reader/JsonByteReader.cs`
+- Contains: Wrapper around Utf8JsonReader, token type mapping, offset computation
+- Depends on: System.Text.Json.Utf8JsonReader
+- Used by: SchemaWalker for single-pass traversal
+
+**Schema Walking Layer (Parse-time, hot path):**
+- Purpose: Single-pass traversal of JSON bytes against schema tree, building offset table and collecting errors
 - Location: `src/Gluey.Contract.Json/Schema/SchemaWalker.cs`
-- Contains: `SchemaWalker` (ref struct, coordinates walk), `WalkResult` (outcome of walk)
-- Depends on: Byte reading layer, validation layer, offset/error collection infrastructure
-- Used by: JsonContractSchema.Parse()
+- Contains: Recursive schema-driven tree navigation, delegated validation (dispatch to keyword validators), error collection, array ordinal assignment
+- Depends on: JsonByteReader, SchemaNode, keyword validators, ErrorCollector, OffsetTable, ArrayBuffer
+- Used by: JsonContractSchema.Parse
 
-**Core Data Structures Layer:**
-- Purpose: Zero-allocation property indexing, error collection, offset/buffer management
-- Location: `src/Gluey.Contract/Parsing/`, `src/Gluey.Contract/Buffers/`, `src/Gluey.Contract/Validation/`
-- Contains:
-  - `ParsedProperty` (readonly struct: offset + length into byte buffer, child/array navigation)
-  - `OffsetTable` (ArrayPool-backed ordinal→ParsedProperty mapping)
-  - `ArrayBuffer` (thread-static cached storage for array elements, region-tracked by ordinal)
-  - `ErrorCollector` (ArrayPool-backed error buffer with overflow sentinel)
-  - `ParseResult` (composite return: offset table + errors + name→ordinal mapping)
-- Depends on: System.Buffers
-- Used by: All layers for result assembly
+**Keyword Validation Layer (Parse-time, hot path):**
+- Purpose: Pluggable validators for JSON Schema keywords (type, minimum, pattern, format, etc.)
+- Location: `src/Gluey.Contract.Json/Validators/`
+- Contains: TypeValidator, NumericValidator, StringValidator, ArrayValidator, ObjectValidator, FormatValidator, CompositionValidator, ConditionalValidator, DependencyValidator, KeywordValidator (dispatcher)
+- Depends on: SchemaNode, ValidationErrorCode
+- Used by: SchemaWalker to validate per-keyword constraints
 
-**Public API Layer:**
-- Purpose: High-level, exception-free schema loading and parsing for library consumers
-- Location: `src/Gluey.Contract.Json/Schema/JsonContractSchema.cs`
-- Contains: `JsonContractSchema` (load schema, parse bytes, all try-/Load patterns)
-- Depends on: All lower layers
-- Used by: External code consuming the library
+**Parsed Result Layer (Post-parse, hot path on access):**
+- Purpose: Unified interface over validated parsed data with hierarchical and array access
+- Location: `src/Gluey.Contract/Parsing/ParseResult.cs`, `src/Gluey.Contract/Parsing/ParsedProperty.cs`
+- Contains: Struct accessors with offset-based materialization, child property/array element navigation, value getters (GetString, GetInt32, etc.)
+- Depends on: OffsetTable, ErrorCollector, ArrayBuffer
+- Used by: Consuming application code after Parse returns
+
+**Buffer Management Layer (Post-parse, cleanup):**
+- Purpose: ArrayPool-backed storage for offset table entries, error arrays, and array element properties
+- Location: `src/Gluey.Contract/Buffers/ArrayBuffer.cs`, `src/Gluey.Contract/Parsing/OffsetTable.cs`, `src/Gluey.Contract/Validation/ErrorCollector.cs`
+- Contains: Thread-static pooling, region tracking for array ordinals, lazy growth strategies
+- Depends on: System.Buffers.ArrayPool
+- Used by: SchemaWalker (during parse), ParseResult/ParsedProperty (during access and cleanup)
 
 ## Data Flow
 
-**Schema Load & Compilation (One-Time at Startup):**
+**Schema Load Path:**
 
-1. User calls `JsonContractSchema.Load(schemaJson)` with JSON Schema as bytes or string
-2. `JsonSchemaLoader` parses the JSON and builds `SchemaNode` tree (recursive descent)
-3. `SchemaIndexer` walks the tree, assigns ordinal indices to all named properties, pre-compiles Regex patterns
-4. `SchemaRefResolver` resolves all `$ref` pointers to their target nodes
-5. Result: Immutable `JsonContractSchema` holds the compiled tree + name→ordinal mapping
+1. `JsonContractSchema.TryLoad(utf8Json)` receives raw JSON Schema bytes
+2. `JsonSchemaLoader.Load()` parses JSON into `SchemaNode` tree (lexical structure only)
+3. `SchemaRefResolver.TryResolve()` walks tree and resolves all `$ref`, `$defs`, `$anchor` references
+4. `SchemaIndexer.AssignOrdinals()` assigns zero-based ordinals to all named properties, returns name-to-ordinal map
+5. `JsonContractSchema` constructor caches SchemaNode root, ordinal map, property count, and format assertion mode
 
-**Single-Pass Validation & Indexing (Hot Path):**
+**Single-Pass Parse Path:**
 
-1. User calls `schema.Parse(jsonBytes)`
-2. `SchemaWalker` (ref struct) created, initializes:
-   - `JsonByteReader` wrapping input bytes
-   - `OffsetTable` (ArrayPool-rented) for property storage
-   - `ArrayBuffer` (thread-static cached) for array elements
-   - `ErrorCollector` (ArrayPool-rented) for errors
-3. Walker reads tokens from `JsonByteReader`, walks left-to-right over tokens
-4. For each token, walker dispatches to appropriate validator (type, enum, numeric, etc.)
-5. Validators return bool (success/failure) and push errors if validation fails
-6. For properties matching the schema, walker records offset + length in `OffsetTable`
-7. For arrays, walker adds elements to `ArrayBuffer` grouped by ordinal
-8. At end of walk, walker returns `WalkResult` (table, errors, array buffer, structural error flag)
-9. `JsonContractSchema.Parse()` wraps result in `ParseResult` and returns to user
-10. User disposes `ParseResult` → cascades to `OffsetTable.Dispose()` + `ErrorCollector.Dispose()` + `ArrayBuffer.Dispose()` → all buffers returned to ArrayPool
+1. `schema.Parse(data)` receives raw UTF-8 bytes (JSON) and schema-loaded context
+2. `SchemaWalker.Walk()` is invoked with bytes, root SchemaNode, nameToOrdinal map, propertyCount
+3. `JsonByteReader.Read()` emits next token with byte offset and length
+4. `SchemaWalker` recursively descends schema tree matching token stream:
+   - For each schema node, dispatch to appropriate keyword validators (KeywordValidator)
+   - Validators return `bool` (valid/invalid); if invalid, ErrorCollector.Add() called
+   - For object properties: store (offset, length) in OffsetTable at ordinal from nameToOrdinal
+   - For array items: store element ParsedProperty in ArrayBuffer under array's ordinal
+5. Error enrichment post-walk: for each collected error, look up SchemaNode by path and apply `x-error` metadata if present
+6. Return `ParseResult` wrapping OffsetTable, ErrorCollector, ArrayBuffer, and nameToOrdinal map
 
-**Property Access at Rest (Zero-Allocation, On-Demand Materialization):**
+**Property Access Path (post-parse):**
 
-1. User gets `ParseResult`, calls `result["propertyName"]` or `result[ordinal]`
-2. String key → looked up in name→ordinal mapping → ordinal returned
-3. Ordinal used to index `OffsetTable`, retrieves `ParsedProperty` struct (offset + length)
-4. User calls `ParsedProperty.GetString()`, `GetInt32()`, etc. → materializes value from byte buffer on demand
-5. For nested/array access: `ParsedProperty` carries child ordinal mapping or `ArrayBuffer` reference
-   - `ParsedProperty["childName"]` → looks up in child ordinals → returns new `ParsedProperty` pointing to same byte buffer at different offset
-   - `ParsedProperty[index]` → consults `ArrayBuffer` → gets array element `ParsedProperty`
-6. All navigation uses stack-allocated structs (no heap allocation)
+1. `result[propertyName]` indexes into nameToOrdinal map to get ordinal, then OffsetTable[ordinal]
+2. `ParsedProperty` is a readonly struct holding (buffer, offset, length, path, childTable, childOrdinals, arrayBuffer, arrayOrdinal)
+3. Child access `prop[childName]` navigates childOrdinals or directChildren dict
+4. Array access `prop[index]` delegates to ArrayBuffer.Get(arrayOrdinal, index)
+5. Materialization `prop.GetString()` decodes bytes at offset:length from buffer using UTF-8 decoder (only on explicit call)
 
 **State Management:**
 
-- **Schema state:** Immutable `SchemaNode` tree, built once, reused across many parses
-- **Parse state:** Stack-allocated `SchemaWalker` ref struct (no heap escaping), allocated buffers rented from ArrayPool, returned when walker exits scope
-- **Result state:** User holds `ParseResult` struct containing references to ArrayPool buffers; buffers returned when `ParseResult.Dispose()` called
-- **Thread safety:** `ArrayBuffer` uses thread-static cache (`t_cached`) — one instance per thread, reused within same thread across parses
+- **SchemaNode tree:** Immutable, single allocation at load time (not on parse path)
+- **OffsetTable:** Mutable during parse, immutable during access; disposed after use
+- **ErrorCollector:** Mutable during parse, immutable during iteration; disposed after use
+- **ArrayBuffer:** Mutable during parse (Add), accessed during property navigation, pooled for reuse
+- **ParsedProperty:** Value type (struct), copied by value; holds references to shared buffers (byte[], OffsetTable, ArrayBuffer)
 
 ## Key Abstractions
 
-**SchemaNode:**
-- Purpose: Immutable tree node representing compiled JSON Schema (Draft 2020-12) keyword fields at a particular path
-- Examples: `src/Gluey.Contract/Schema/SchemaNode.cs`
-- Pattern: Property-based immutable record; pre-computed RFC 6901 path; pre-compiled Regex patterns for validation keywords; nested children as properties; PropertyLookup table for UTF8 byte matching
-
 **ParsedProperty:**
-- Purpose: Zero-allocation accessor into raw byte buffer; struct holding offset + length + path + child/array navigation metadata
+- Purpose: Zero-allocation accessor into parsed byte data
 - Examples: `src/Gluey.Contract/Parsing/ParsedProperty.cs`
-- Pattern: Readonly struct (stack-allocated); contains two constructors (leaf vs. navigable); indexers for child property and array element access; Get* methods (GetString, GetInt32, etc.) for on-demand materialization; includes nested ArrayEnumerator for foreach over arrays
+- Pattern: Value struct holding (buffer, offset, length, path) with deferred materialization on GetString/GetInt32/etc; supports hierarchical (string indexer) and array (int indexer) navigation through lazy lookups in child tables/array buffer
 
-**OffsetTable & ArrayBuffer:**
-- Purpose: ArrayPool-backed property storage, ordinal-indexed for schema properties; region-tracked storage for array elements
-- Examples: `src/Gluey.Contract/Parsing/OffsetTable.cs`, `src/Gluey.Contract/Buffers/ArrayBuffer.cs`
-- Pattern: Struct (OffsetTable) and class (ArrayBuffer) wrapping ArrayPool rentals; Set/Get/Count operations; IDisposable to return rented buffers; thread-static cache on ArrayBuffer for reuse
+**SchemaNode:**
+- Purpose: Immutable compiled JSON Schema (Draft 2020-12) representation
+- Examples: `src/Gluey.Contract/Schema/SchemaNode.cs`
+- Pattern: Tree of keyword properties (type, properties, required, minimum, pattern, format, x-error, etc.); path and reference state computed at load time; never mutated during parsing
+
+**OffsetTable:**
+- Purpose: ArrayPool-backed store for (offset, length, path) tuples per named property
+- Examples: `src/Gluey.Contract/Parsing/OffsetTable.cs`
+- Pattern: Ordinal-indexed array; sized once from property count; slots filled during schema walk; disposed and returned to pool after access
 
 **ErrorCollector:**
-- Purpose: ArrayPool-backed buffer for collecting ValidationError during parse without heap allocation; sentinel overflow handling
+- Purpose: ArrayPool-backed, bounded error collection with overflow sentinel
 - Examples: `src/Gluey.Contract/Validation/ErrorCollector.cs`
-- Pattern: Struct wrapping ArrayPool rental; Add() pushes errors; when capacity exceeded, last slot replaced with TooManyErrors sentinel; GetEnumerator for struct-based foreach; IDisposable
+- Pattern: Fixed-size pool-rented array; capacity enforced (default 64); TooManyErrors sentinel on overflow; supports post-walk error replacement for x-error enrichment
 
-**Validators (per-keyword):**
-- Purpose: Encapsulate validation logic for JSON Schema keyword families in isolation
-- Examples: `src/Gluey.Contract.Json/Validators/KeywordValidator.cs`, `NumericValidator.cs`, `StringValidator.cs`, `ArrayValidator.cs`, `ObjectValidator.cs`, `CompositionValidator.cs`, `ConditionalValidator.cs`, `DependencyValidator.cs`, `FormatValidator.cs`
-- Pattern: Static methods returning bool; consume SchemaNode + JsonByteTokenType/bytes; push errors to ErrorCollector if validation fails; no state, no allocation
+**ArrayBuffer:**
+- Purpose: ArrayPool-backed, region-tracked storage for array elements
+- Examples: `src/Gluey.Contract/Buffers/ArrayBuffer.cs`
+- Pattern: Thread-static pooled instance per thread; regions map array ordinals to (start, count) pairs; supports per-element ParsedProperty access; lazy growth; disposed and cached for reuse
+
+**JsonByteReader:**
+- Purpose: Low-level JSON tokenizer with byte offset tracking
+- Examples: `src/Gluey.Contract.Json/Reader/JsonByteReader.cs`
+- Pattern: Ref struct wrapping Utf8JsonReader; emits per-token type, offset (inside quotes for strings), length; maps JSON token types to internal JsonByteTokenType enum
 
 **SchemaWalker:**
-- Purpose: Orchestrate single-pass validation and offset table construction; dispatch tokens to validators; manage parse state
+- Purpose: Orchestrates single-pass schema-driven validation and offset table population
 - Examples: `src/Gluey.Contract.Json/Schema/SchemaWalker.cs`
-- Pattern: Internal ref struct (stack-allocated, cannot escape); two static entry points (byte[] vs. ReadOnlySpan); Execute() method for walk orchestration; recursive private methods for object/array descent
+- Pattern: Ref struct for stack allocation; recursive descent matching token stream to schema tree; delegates keyword validation; accumulates errors and populated offset/array tables
 
 ## Entry Points
 
-**Schema Loading:**
-- Location: `src/Gluey.Contract.Json/Schema/JsonContractSchema.cs` - `Load()` / `TryLoad()` methods
-- Triggers: Called once at application startup or when schema source changes
-- Responsibilities: Parse JSON Schema, build and validate tree, return ready-to-parse schema object
+**Schema Load Entry Point:**
+- Location: `src/Gluey.Contract.Json/Schema/JsonContractSchema.cs` — `TryLoad(utf8Json, out schema, registry?, options?)`
+- Triggers: Application startup or when schema is needed
+- Responsibilities: Load JSON Schema from bytes/string, resolve references, assign ordinals, return JsonContractSchema or null
 
-**Parsing/Validation:**
-- Location: `src/Gluey.Contract.Json/Schema/JsonContractSchema.cs` - `Parse()` / `TryParse()` methods
-- Triggers: Called per incoming JSON byte array (hot path)
-- Responsibilities: Create SchemaWalker, perform single-pass walk, return ParseResult with offset table + errors
+**Parse Entry Point:**
+- Location: `src/Gluey.Contract.Json/Schema/JsonContractSchema.cs` — `Parse(data: ReadOnlySpan<byte> or byte[])`
+- Triggers: Request arrives with JSON payload
+- Responsibilities: Invoke SchemaWalker single-pass walk, collect errors, populate offset table/array buffer, return ParseResult or null (structural error)
 
-**Property Access:**
-- Location: `src/Gluey.Contract/Parsing/ParseResult.cs` - indexers `[string name]` / `[int ordinal]`
-- Triggers: User code accessing parsed properties
-- Responsibilities: Resolve name to ordinal via schema mapping, return ParsedProperty; or directly index by ordinal
+**Property Access Entry Point:**
+- Location: `src/Gluey.Contract/Parsing/ParseResult.cs` — `this[string name]` / `this[int ordinal]`
+- Triggers: Code calls result["propertyName"] or result[0]
+- Responsibilities: Index into OffsetTable via nameToOrdinal map or direct ordinal, return ParsedProperty accessor
 
-**Error Inspection:**
-- Location: `src/Gluey.Contract/Parsing/ParseResult.cs` - `Errors` property, `IsValid` property
-- Triggers: When parse result has validation errors
-- Responsibilities: Expose ErrorCollector with enumerable error list
+**Value Materialization Entry Point:**
+- Location: `src/Gluey.Contract/Parsing/ParsedProperty.cs` — `GetString()`, `GetInt32()`, `GetBoolean()`, etc.
+- Triggers: Code calls prop.GetString()
+- Responsibilities: Decode bytes at offset:length in buffer, allocate result (string, int, bool, decimal, etc.), return materialized value
 
 ## Error Handling
 
-**Strategy:** Exception-free API. All methods return nullable/struct results. Errors collected in ErrorCollector, inspected after parse.
+**Strategy:** Validation-driven error collection with optional enrichment
 
 **Patterns:**
-
-- **Structural errors (malformed JSON):** `SchemaWalker` sets `HasStructuralError` flag in `WalkResult`, returns `null` from `JsonContractSchema.Parse()` to indicate the JSON cannot be parsed
-- **Validation errors (schema violations):** Collected in `ErrorCollector` during walk; accessible via `ParseResult.Errors`; includes RFC 6901 path and error code for each failure
-- **Capacity limits (too many errors):** When `ErrorCollector` reaches capacity (default 64), last slot replaced with sentinel `ValidationErrorCode.TooManyErrors` and further errors dropped silently
-- **Out-of-bounds/missing properties:** `ParsedProperty.Empty` returned (default struct) for missing properties; never throw; `HasValue` property allows checking before materialization
+- **Structural errors (malformed JSON):** Return null from Parse(); ErrorCollector and OffsetTable disposed internally
+- **Validation errors (schema violations):** Accumulated in ErrorCollector during walk; returned as ParseResult.Errors; codes and messages predefined in ValidationErrorCode and ValidationErrorMessages
+- **Custom error metadata (x-error):** Post-walk enrichment: for each collected error, resolve SchemaNode by RFC 6901 path, check for x-error extension, replace ValidationError with enriched version carrying custom code/title/detail/type
+- **Overflow handling:** ErrorCollector has fixed capacity (default 64); when full, last slot replaced with TooManyErrors sentinel, further errors silently dropped
+- **No exceptions on hot path:** All validation methods return bool; ErrorCollector.Add() is the only side effect
 
 ## Cross-Cutting Concerns
 
-**Logging:** None. Library is zero-allocation critical; no logging infrastructure.
+**Logging:** No logging. Validation errors and structural errors are returned in ErrorCollector or null return, never thrown.
 
-**Validation:** Multi-layered:
-- Schema validation during load phase (JSON Schema syntax, reference resolution, pattern compilation)
-- Token validation during parse phase (per-keyword validators)
-- Combined errors include path context (RFC 6901)
+**Validation:** Pluggable per-keyword validator dispatch in SchemaWalker; KeywordValidator routes to TypeValidator, NumericValidator, StringValidator, ArrayValidator, ObjectValidator, CompositionValidator, ConditionalValidator, DependencyValidator, FormatValidator based on schema node properties.
 
-**Authentication:** Not applicable. Library validates structure and types, not identity/authorization.
+**Authentication:** Not applicable. This library is a validation engine, not an auth system.
 
-**Memory Management:**
-- ArrayPool for OffsetTable, ErrorCollector, ArrayBuffer entries — rented at walk start, returned when parse result disposed
-- Thread-static cache on ArrayBuffer for per-thread reuse across multiple parses
-- Stack allocation (ref structs) for SchemaWalker, JsonByteReader, enumerators — zero heap pressure
-- Regex patterns compiled once at schema load time, reused across all parses
+**Buffer Management:** All temporary allocations (OffsetTable, ErrorCollector, ArrayBuffer) use ArrayPool for zero-GC hot path. Thread-static caching for ArrayBuffer to reuse across parse calls on same thread. Explicit disposal returns buffers; `using` statement recommended.
 
----
+**Path Tracking:** Every ParsedProperty and ValidationError carries precomputed RFC 6901 JSON Pointer path (`/foo/bar/0/baz`). Paths computed incrementally during SchemaWalker descent (no tree walk post-parse).
 
-*Architecture analysis: 2026-03-18*
