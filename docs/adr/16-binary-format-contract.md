@@ -65,6 +65,7 @@ A binary contract is a JSON document with metadata and a `fields` map. Each fiel
       "dependsOn": "sensorReading",
       "type": "string",
       "encoding": "ASCII",
+      "mode": "trimEnd",
       "size": 6,
       "displayName": {
         "en-US": "Unique identifier of forklift operator's badge",
@@ -157,7 +158,7 @@ This model means JSON key order does not matter — the parser reconstructs the 
 | `float32` | 4 | IEEE 754 single-precision |
 | `float64` | 8 | IEEE 754 double-precision |
 | `boolean` | 1 | 0 = false, non-zero = true |
-| `string` | explicit `size` | Requires `encoding` (ASCII, UTF-8) |
+| `string` | explicit `size` | Requires `encoding` (ASCII, UTF-8); optional `mode` for trimming |
 | `enum` | from `primitive` | Maps integer keys to string values |
 | `bits` | explicit `size` | Container for bit-level sub-fields |
 | `array` | computed | Fixed or semi-dynamic element collection |
@@ -172,6 +173,19 @@ This model means JSON key order does not matter — the parser reconstructs the 
 - Individual fields may override with their own `endianness` property.
 - Applies to multi-byte numeric types only.
 
+### String modes
+
+String fields support a `mode` property that controls whitespace and null-byte trimming:
+
+| Mode | Behavior |
+|------|----------|
+| `plain` | Return bytes as-is, no trimming |
+| `trimStart` | Remove leading null bytes (0x00) |
+| `trimEnd` | Remove trailing null bytes (0x00) and whitespace |
+| `trim` | Remove both leading null bytes and trailing null bytes/whitespace |
+
+When `mode` is omitted, `trimEnd` is the default. This handles the common case of fixed-length fields padded with null bytes.
+
 ### Arrays
 
 Arrays support two count modes:
@@ -185,8 +199,8 @@ Fully dynamic arrays (unknown count, no terminator) are not supported.
 
 An enum field stores an integer in the payload and maps it to a string via the `values` table. Both representations are exposed in ParsedObject:
 
-- `parsed["mode"]` returns the mapped string (`"charging"`)
-- `parsed["modes"]` returns the raw numeric value (`1`) — the source accessor is the field name suffixed with `s`
+- `parsed["mode"]` returns the raw numeric value (`1`) via the standard numeric accessor (e.g., `GetUInt8()`)
+- `parsed["modes"]` returns the mapped string label (`"charging"`) via `GetString()` — the label accessor is the field name suffixed with `s`
 
 ### Bit fields
 
@@ -229,8 +243,8 @@ parsed["flags/errorCode"]              -> 3
 parsed["level"]                        -> 87
 parsed["sensorReading"]                -> -12345
 parsed["operatorBadgeId"]              -> "ABC123"
-parsed["mode"]                         -> "charging"
-parsed["modes"]                        -> 1
+parsed["mode"]                         -> 1 (raw numeric value)
+parsed["modes"]                        -> "charging" (mapped string label)
 parsed["lastThreeVoltages/0"]          -> 12.5
 parsed["lastThreeVoltages/1"]          -> 12.3
 parsed["lastThreeVoltages/2"]          -> 12.1
