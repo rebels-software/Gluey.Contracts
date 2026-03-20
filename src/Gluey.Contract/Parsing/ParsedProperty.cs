@@ -20,6 +20,28 @@ using System.Text;
 namespace Gluey.Contract;
 
 /// <summary>
+/// Byte constants representing contract-declared field types.
+/// Used for accessor type strictness validation on binary format properties.
+/// </summary>
+internal static class FieldTypes
+{
+    internal const byte None = 0;
+    internal const byte UInt8 = 1;
+    internal const byte UInt16 = 2;
+    internal const byte UInt32 = 3;
+    internal const byte Int8 = 4;
+    internal const byte Int16 = 5;
+    internal const byte Int32 = 6;
+    internal const byte Float32 = 7;
+    internal const byte Float64 = 8;
+    internal const byte Boolean = 9;
+    internal const byte String = 10;
+    internal const byte Enum = 11;
+    internal const byte Bits = 12;
+    internal const byte Padding = 13;
+}
+
+/// <summary>
 /// A zero-allocation accessor into parsed byte data.
 /// Holds an offset and length into the original byte buffer.
 /// Values are materialized only when accessed via GetString(), GetInt32(), etc.
@@ -39,6 +61,7 @@ public readonly struct ParsedProperty
     private readonly int _arrayOrdinal;
     private readonly byte _format;      // 0 = UTF-8/JSON (default), 1 = Binary
     private readonly byte _endianness;   // 0 = little-endian, 1 = big-endian (only meaningful when _format == 1)
+    private readonly byte _fieldType;    // 0 = unset (JSON), 1-13 = binary field type (see FieldTypes)
 
     /// <summary>
     /// Creates a new <see cref="ParsedProperty"/> pointing into the given byte buffer.
@@ -61,6 +84,7 @@ public readonly struct ParsedProperty
         _arrayOrdinal = -1;
         _format = 0;
         _endianness = 0;
+        _fieldType = 0;
     }
 
     /// <summary>
@@ -90,6 +114,7 @@ public readonly struct ParsedProperty
         _arrayOrdinal = arrayOrdinal;
         _format = 0;
         _endianness = 0;
+        _fieldType = 0;
     }
 
     /// <summary>
@@ -110,6 +135,7 @@ public readonly struct ParsedProperty
         _arrayOrdinal = -1;
         _format = 0;
         _endianness = 0;
+        _fieldType = 0;
     }
 
     /// <summary>
@@ -128,6 +154,26 @@ public readonly struct ParsedProperty
         _arrayOrdinal = -1;
         _format = format;
         _endianness = endianness;
+        _fieldType = 0;
+    }
+
+    /// <summary>
+    /// Creates a new <see cref="ParsedProperty"/> for binary format leaf/scalar properties with field type metadata.
+    /// </summary>
+    internal ParsedProperty(byte[] buffer, int offset, int length, string path, byte format, byte endianness, byte fieldType)
+    {
+        _buffer = buffer;
+        _offset = offset;
+        _length = length;
+        _path = path;
+        _childTable = default;
+        _childOrdinals = null;
+        _directChildren = null;
+        _arrayBuffer = null;
+        _arrayOrdinal = -1;
+        _format = format;
+        _endianness = endianness;
+        _fieldType = fieldType;
     }
 
     /// <summary>
@@ -148,6 +194,28 @@ public readonly struct ParsedProperty
         _arrayOrdinal = arrayOrdinal;
         _format = format;
         _endianness = endianness;
+        _fieldType = 0;
+    }
+
+    /// <summary>
+    /// Creates a new <see cref="ParsedProperty"/> for binary format properties with child navigation and field type metadata.
+    /// </summary>
+    internal ParsedProperty(byte[] buffer, int offset, int length, string path, byte format, byte endianness, byte fieldType,
+        OffsetTable childTable, Dictionary<string, int>? childOrdinals,
+        ArrayBuffer? arrayBuffer, int arrayOrdinal)
+    {
+        _buffer = buffer;
+        _offset = offset;
+        _length = length;
+        _path = path;
+        _childTable = childTable;
+        _childOrdinals = childOrdinals;
+        _directChildren = null;
+        _arrayBuffer = arrayBuffer;
+        _arrayOrdinal = arrayOrdinal;
+        _format = format;
+        _endianness = endianness;
+        _fieldType = fieldType;
     }
 
     /// <summary>The RFC 6901 JSON Pointer path for this property.</summary>
@@ -220,6 +288,94 @@ public readonly struct ParsedProperty
     }
 
     /// <summary>
+    /// Materializes the value as an unsigned 8-bit integer from binary data.
+    /// Returns <c>default(byte)</c> when <see cref="HasValue"/> is false.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public byte GetUInt8()
+    {
+        if (_length == 0) return default;
+        if (_format == 1 && _fieldType != FieldTypes.None && _fieldType != FieldTypes.UInt8)
+            throw new InvalidOperationException($"Cannot read UInt8 from field of type '{GetFieldTypeName()}' at path '{_path}'.");
+        if (_format == 0)
+        {
+            Utf8Parser.TryParse(_buffer.AsSpan(_offset, _length), out int value, out _);
+            return (byte)value;
+        }
+        return _buffer[_offset];
+    }
+
+    /// <summary>
+    /// Materializes the value as an unsigned 16-bit integer from binary data.
+    /// Returns <c>default(ushort)</c> when <see cref="HasValue"/> is false.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ushort GetUInt16()
+    {
+        if (_length == 0) return default;
+        if (_format == 1 && _fieldType != FieldTypes.None && _fieldType != FieldTypes.UInt16)
+            throw new InvalidOperationException($"Cannot read UInt16 from field of type '{GetFieldTypeName()}' at path '{_path}'.");
+        if (_format == 0)
+        {
+            Utf8Parser.TryParse(_buffer.AsSpan(_offset, _length), out int value, out _);
+            return (ushort)value;
+        }
+        var span = _buffer.AsSpan(_offset, _length);
+        if (_endianness == 0)
+        {
+            return _length switch
+            {
+                1 => span[0],
+                2 => BinaryPrimitives.ReadUInt16LittleEndian(span),
+                _ => throw new InvalidOperationException($"Cannot read UInt16 from {_length} bytes at path '{_path}'")
+            };
+        }
+        return _length switch
+        {
+            1 => span[0],
+            2 => BinaryPrimitives.ReadUInt16BigEndian(span),
+            _ => throw new InvalidOperationException($"Cannot read UInt16 from {_length} bytes at path '{_path}'")
+        };
+    }
+
+    /// <summary>
+    /// Materializes the value as an unsigned 32-bit integer from binary data.
+    /// Returns <c>default(uint)</c> when <see cref="HasValue"/> is false.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public uint GetUInt32()
+    {
+        if (_length == 0) return default;
+        if (_format == 1 && _fieldType != FieldTypes.None && _fieldType != FieldTypes.UInt32)
+            throw new InvalidOperationException($"Cannot read UInt32 from field of type '{GetFieldTypeName()}' at path '{_path}'.");
+        if (_format == 0)
+        {
+            Utf8Parser.TryParse(_buffer.AsSpan(_offset, _length), out uint value, out _);
+            return value;
+        }
+        var span = _buffer.AsSpan(_offset, _length);
+        if (_endianness == 0)
+        {
+            return _length switch
+            {
+                1 => span[0],
+                2 => BinaryPrimitives.ReadUInt16LittleEndian(span),
+                3 => (uint)span[0] | ((uint)span[1] << 8) | ((uint)span[2] << 16),
+                4 => BinaryPrimitives.ReadUInt32LittleEndian(span),
+                _ => throw new InvalidOperationException($"Cannot read UInt32 from {_length} bytes at path '{_path}'")
+            };
+        }
+        return _length switch
+        {
+            1 => span[0],
+            2 => BinaryPrimitives.ReadUInt16BigEndian(span),
+            3 => ((uint)span[0] << 16) | ((uint)span[1] << 8) | span[2],
+            4 => BinaryPrimitives.ReadUInt32BigEndian(span),
+            _ => throw new InvalidOperationException($"Cannot read UInt32 from {_length} bytes at path '{_path}'")
+        };
+    }
+
+    /// <summary>
     /// Materializes the value as a 32-bit integer parsed from UTF-8 bytes.
     /// Returns <c>default(int)</c> when <see cref="HasValue"/> is false or the bytes cannot be parsed.
     /// </summary>
@@ -227,6 +383,8 @@ public readonly struct ParsedProperty
     public int GetInt32()
     {
         if (_length == 0) return default;
+        if (_format == 1 && _fieldType != FieldTypes.None && _fieldType != FieldTypes.Int32)
+            throw new InvalidOperationException($"Cannot read Int32 from field of type '{GetFieldTypeName()}' at path '{_path}'.");
         if (_format == 0)
         {
             Utf8Parser.TryParse(_buffer.AsSpan(_offset, _length), out int value, out _);
@@ -239,6 +397,7 @@ public readonly struct ParsedProperty
             {
                 1 => (sbyte)span[0],
                 2 => BinaryPrimitives.ReadInt16LittleEndian(span),
+                3 => SignExtend3BytesLittleEndian(span),
                 4 => BinaryPrimitives.ReadInt32LittleEndian(span),
                 _ => throw new InvalidOperationException($"Cannot read Int32 from {_length} bytes at path '{_path}'")
             };
@@ -247,6 +406,7 @@ public readonly struct ParsedProperty
         {
             1 => (sbyte)span[0],
             2 => BinaryPrimitives.ReadInt16BigEndian(span),
+            3 => SignExtend3BytesBigEndian(span),
             4 => BinaryPrimitives.ReadInt32BigEndian(span),
             _ => throw new InvalidOperationException($"Cannot read Int32 from {_length} bytes at path '{_path}'")
         };
@@ -260,6 +420,8 @@ public readonly struct ParsedProperty
     public long GetInt64()
     {
         if (_length == 0) return default;
+        if (_format == 1 && _fieldType != FieldTypes.None && _fieldType != FieldTypes.Int32 && _fieldType != FieldTypes.Int16 && _fieldType != FieldTypes.Int8)
+            throw new InvalidOperationException($"Cannot read Int64 from field of type '{GetFieldTypeName()}' at path '{_path}'.");
         if (_format == 0)
         {
             Utf8Parser.TryParse(_buffer.AsSpan(_offset, _length), out long value, out _);
@@ -272,6 +434,7 @@ public readonly struct ParsedProperty
             {
                 1 => (sbyte)span[0],
                 2 => BinaryPrimitives.ReadInt16LittleEndian(span),
+                3 => SignExtend3BytesLittleEndian(span),
                 4 => BinaryPrimitives.ReadInt32LittleEndian(span),
                 8 => BinaryPrimitives.ReadInt64LittleEndian(span),
                 _ => throw new InvalidOperationException($"Cannot read Int64 from {_length} bytes at path '{_path}'")
@@ -281,6 +444,7 @@ public readonly struct ParsedProperty
         {
             1 => (sbyte)span[0],
             2 => BinaryPrimitives.ReadInt16BigEndian(span),
+            3 => SignExtend3BytesBigEndian(span),
             4 => BinaryPrimitives.ReadInt32BigEndian(span),
             8 => BinaryPrimitives.ReadInt64BigEndian(span),
             _ => throw new InvalidOperationException($"Cannot read Int64 from {_length} bytes at path '{_path}'")
@@ -295,6 +459,8 @@ public readonly struct ParsedProperty
     public double GetDouble()
     {
         if (_length == 0) return default;
+        if (_format == 1 && _fieldType != FieldTypes.None && _fieldType != FieldTypes.Float64 && _fieldType != FieldTypes.Float32)
+            throw new InvalidOperationException($"Cannot read Double from field of type '{GetFieldTypeName()}' at path '{_path}'.");
         if (_format == 0)
         {
             Utf8Parser.TryParse(_buffer.AsSpan(_offset, _length), out double value, out _);
@@ -327,6 +493,8 @@ public readonly struct ParsedProperty
     public bool GetBoolean()
     {
         if (_length == 0) return default;
+        if (_format == 1 && _fieldType != FieldTypes.None && _fieldType != FieldTypes.Boolean)
+            throw new InvalidOperationException($"Cannot read Boolean from field of type '{GetFieldTypeName()}' at path '{_path}'.");
         if (_format == 0)
             return _length == 4 && _buffer[_offset] == (byte)'t';
         return _buffer[_offset] != 0;
@@ -371,6 +539,38 @@ public readonly struct ParsedProperty
 
     /// <summary>Returns a default <see cref="ParsedProperty"/> with no value.</summary>
     public static ParsedProperty Empty => default;
+
+    // -- Private helpers --
+
+    private static int SignExtend3BytesBigEndian(ReadOnlySpan<byte> span)
+    {
+        byte fill = (span[0] & 0x80) != 0 ? (byte)0xFF : (byte)0x00;
+        return (fill << 24) | (span[0] << 16) | (span[1] << 8) | span[2];
+    }
+
+    private static int SignExtend3BytesLittleEndian(ReadOnlySpan<byte> span)
+    {
+        byte fill = (span[2] & 0x80) != 0 ? (byte)0xFF : (byte)0x00;
+        return (fill << 24) | (span[2] << 16) | (span[1] << 8) | span[0];
+    }
+
+    private string GetFieldTypeName() => _fieldType switch
+    {
+        FieldTypes.UInt8 => "uint8",
+        FieldTypes.UInt16 => "uint16",
+        FieldTypes.UInt32 => "uint32",
+        FieldTypes.Int8 => "int8",
+        FieldTypes.Int16 => "int16",
+        FieldTypes.Int32 => "int32",
+        FieldTypes.Float32 => "float32",
+        FieldTypes.Float64 => "float64",
+        FieldTypes.Boolean => "boolean",
+        FieldTypes.String => "string",
+        FieldTypes.Enum => "enum",
+        FieldTypes.Bits => "bits",
+        FieldTypes.Padding => "padding",
+        _ => "unknown"
+    };
 
     /// <summary>
     /// A stack-allocated enumerator over array elements of a <see cref="ParsedProperty"/>.

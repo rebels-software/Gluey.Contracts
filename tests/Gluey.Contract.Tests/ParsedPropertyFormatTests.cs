@@ -147,13 +147,13 @@ public class ParsedPropertyFormatTests
     }
 
     [Test]
-    public void BinaryGetInt32_ThrowsForUnsupportedLength()
+    public void BinaryGetInt32_Reads3ByteTruncated_LittleEndian()
     {
+        // 3-byte truncated int32 read with sign extension (little-endian)
         var buffer = new byte[] { 0x01, 0x02, 0x03 };
         var prop = new ParsedProperty(buffer, 0, 3, "/val", BinaryFormat, LittleEndian);
 
-        var act = () => prop.GetInt32();
-
-        act.Should().Throw<InvalidOperationException>();
+        // LE 3 bytes: fill=0x00 (MSB span[2]=0x03, no sign), (0x00 << 24) | (0x03 << 16) | (0x02 << 8) | 0x01 = 197121
+        prop.GetInt32().Should().Be(197121);
     }
 }
