@@ -64,7 +64,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Extend ParsedProperty with field type metadata and unsigned accessors, add Parse() to BinaryContractSchema
+- [x] 03-01-PLAN.md — Extend ParsedProperty with field type metadata and unsigned accessors, add Parse() to BinaryContractSchema
 - [ ] 03-02-PLAN.md — End-to-end scalar parsing tests covering all requirements
 
 ### Phase 4: Leaf Types
@@ -134,7 +134,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 |-------|----------------|--------|-----------|
 | 1. Format Flag | 0/1 | Planning complete | - |
 | 2. Contract Model | 3/3 | Complete   | 2026-03-19 |
-| 3. Scalar Parsing | 0/2 | Planning complete | - |
+| 3. Scalar Parsing | 1/2 | In Progress|  |
 | 4. Leaf Types | 0/? | Not started | - |
 | 5. Composite Types | 0/? | Not started | - |
 | 6. Validation | 0/? | Not started | - |

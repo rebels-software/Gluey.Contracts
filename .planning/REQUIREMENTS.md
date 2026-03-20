@@ -10,8 +10,8 @@
 - [x] **CORE-01**: ParsedProperty has a 1-byte format flag that dispatches GetXxx() between UTF-8 and binary reading
 - [x] **CORE-02**: Adding format flag does not break existing JSON consumers (all JSON tests pass unchanged)
 - [x] **CORE-03**: BinaryContractSchema exposes TryLoad/Load static factory methods matching JsonContractSchema pattern
-- [ ] **CORE-04**: BinaryContractSchema.Parse(byte[]) returns ParseResult? (null for structurally invalid payloads)
-- [ ] **CORE-05**: Zero-allocation parse path using ArrayPool, OffsetTable, ErrorCollector, ArrayBuffer
+- [x] **CORE-04**: BinaryContractSchema.Parse(byte[]) returns ParseResult? (null for structurally invalid payloads)
+- [x] **CORE-05**: Zero-allocation parse path using ArrayPool, OffsetTable, ErrorCollector, ArrayBuffer
 
 ### Contract Model
 
@@ -27,12 +27,12 @@
 
 ### Scalar Parsing
 
-- [ ] **SCLR-01**: Parser reads uint8, uint16, uint32 with correct endianness via BinaryPrimitives
-- [ ] **SCLR-02**: Parser reads int8, int16, int32 with correct endianness via BinaryPrimitives
-- [ ] **SCLR-03**: Parser reads float32 and float64 with correct endianness
-- [ ] **SCLR-04**: Parser reads boolean (0 = false, non-zero = true)
-- [ ] **SCLR-05**: Truncated numerics: int32 in fewer bytes with correct sign extension
-- [ ] **SCLR-06**: Truncated numerics: uint32 in fewer bytes with zero-padding
+- [x] **SCLR-01**: Parser reads uint8, uint16, uint32 with correct endianness via BinaryPrimitives
+- [x] **SCLR-02**: Parser reads int8, int16, int32 with correct endianness via BinaryPrimitives
+- [x] **SCLR-03**: Parser reads float32 and float64 with correct endianness
+- [x] **SCLR-04**: Parser reads boolean (0 = false, non-zero = true)
+- [x] **SCLR-05**: Truncated numerics: int32 in fewer bytes with correct sign extension
+- [x] **SCLR-06**: Truncated numerics: uint32 in fewer bytes with zero-padding
 
 ### String and Enum
 
@@ -108,8 +108,8 @@
 | CORE-01 | Phase 1 | Complete |
 | CORE-02 | Phase 1 | Complete |
 | CORE-03 | Phase 2 | Complete |
-| CORE-04 | Phase 3 | Pending |
-| CORE-05 | Phase 3 | Pending |
+| CORE-04 | Phase 3 | Complete |
+| CORE-05 | Phase 3 | Complete |
 | CNTR-01 | Phase 2 | Complete |
 | CNTR-02 | Phase 2 | Complete |
 | CNTR-03 | Phase 2 | Complete |
@@ -119,12 +119,12 @@
 | CNTR-07 | Phase 2 | Complete |
 | CNTR-08 | Phase 2 | Complete |
 | CNTR-09 | Phase 2 | Complete |
-| SCLR-01 | Phase 3 | Pending |
-| SCLR-02 | Phase 3 | Pending |
-| SCLR-03 | Phase 3 | Pending |
-| SCLR-04 | Phase 3 | Pending |
-| SCLR-05 | Phase 3 | Pending |
-| SCLR-06 | Phase 3 | Pending |
+| SCLR-01 | Phase 3 | Complete |
+| SCLR-02 | Phase 3 | Complete |
+| SCLR-03 | Phase 3 | Complete |
+| SCLR-04 | Phase 3 | Complete |
+| SCLR-05 | Phase 3 | Complete |
+| SCLR-06 | Phase 3 | Complete |
 | STRE-01 | Phase 4 | Pending |
 | STRE-02 | Phase 4 | Pending |
 | STRE-03 | Phase 4 | Pending |
