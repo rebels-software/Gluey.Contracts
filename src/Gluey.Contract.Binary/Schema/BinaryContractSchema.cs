@@ -58,11 +58,19 @@ public class BinaryContractSchema
     /// <summary>Field lookup by name for parsed result access.</summary>
     internal Dictionary<string, int> NameToOrdinal { get; }
 
+    /// <summary>Total OffsetTable capacity including synthetic ordinals for enum suffixes and bit sub-fields.</summary>
+    internal int TotalOrdinalCapacity { get; }
+
+    /// <summary>Total number of bit sub-fields across all containers, for scratch buffer sizing.</summary>
+    private readonly int _totalBitSubFields;
+
     private BinaryContractSchema(
         ContractMetadata metadata,
         BinaryContractNode[] orderedFields,
         int totalFixedSize,
-        Dictionary<string, int> nameToOrdinal)
+        Dictionary<string, int> nameToOrdinal,
+        int totalOrdinalCapacity,
+        int totalBitSubFields)
     {
         Id = metadata.Id;
         Name = metadata.Name;
@@ -71,6 +79,8 @@ public class BinaryContractSchema
         OrderedFields = orderedFields;
         TotalFixedSize = totalFixedSize;
         NameToOrdinal = nameToOrdinal;
+        TotalOrdinalCapacity = totalOrdinalCapacity;
+        _totalBitSubFields = totalBitSubFields;
     }
 
     // -- TryLoad / Load (ReadOnlySpan<byte>) --
@@ -117,15 +127,50 @@ public class BinaryContractSchema
         // Phase 5: Resolve chain
         var orderedFields = BinaryChainResolver.Resolve(fields, contractEndianness);
 
-        // Build name-to-ordinal map
-        var nameToOrdinal = new Dictionary<string, int>(orderedFields.Length, StringComparer.Ordinal);
+        // Build name-to-ordinal map with synthetic entries for enums and bit sub-fields
+        int extraOrdinals = 0;
+        int totalBitSubFields = 0;
         for (int i = 0; i < orderedFields.Length; i++)
-            nameToOrdinal[orderedFields[i].Name] = i;
+        {
+            var node = orderedFields[i];
+            if (node.Type == "enum")
+                extraOrdinals++; // one extra for "names" suffix entry
+            if (node.Type == "bits" && node.BitFields is not null)
+            {
+                extraOrdinals += node.BitFields.Count; // one per sub-field
+                totalBitSubFields += node.BitFields.Count;
+            }
+        }
+
+        int totalCapacity = orderedFields.Length + extraOrdinals;
+        var nameToOrdinal = new Dictionary<string, int>(totalCapacity, StringComparer.Ordinal);
+        int nextOrdinal = orderedFields.Length; // synthetic ordinals start after base ordinals
+
+        for (int i = 0; i < orderedFields.Length; i++)
+        {
+            var node = orderedFields[i];
+            nameToOrdinal[node.Name] = i;
+
+            // Enum: add suffixed entry (e.g., "modes" -> ordinal for string label)
+            if (node.Type == "enum")
+            {
+                nameToOrdinal[node.Name + "s"] = nextOrdinal++;
+            }
+
+            // Bits: add sub-field path entries (e.g., "flags/isCharging" -> ordinal)
+            if (node.Type == "bits" && node.BitFields is not null)
+            {
+                foreach (var subFieldName in node.BitFields.Keys)
+                {
+                    nameToOrdinal[node.Name + "/" + subFieldName] = nextOrdinal++;
+                }
+            }
+        }
 
         // Compute total fixed size
         int totalFixedSize = ComputeTotalFixedSize(orderedFields);
 
-        schema = new BinaryContractSchema(metadata!, orderedFields, totalFixedSize, nameToOrdinal);
+        schema = new BinaryContractSchema(metadata!, orderedFields, totalFixedSize, nameToOrdinal, totalCapacity, totalBitSubFields);
         return true;
     }
 
@@ -175,7 +220,7 @@ public class BinaryContractSchema
         if (TotalFixedSize >= 0 && data.Length < TotalFixedSize)
             return null;
 
-        var offsetTable = new OffsetTable(OrderedFields.Length);
+        var offsetTable = new OffsetTable(TotalOrdinalCapacity);
         var errors = new ErrorCollector();
 
         for (int i = 0; i < OrderedFields.Length; i++)
