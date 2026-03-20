@@ -226,7 +226,11 @@ public class BinaryContractSchema
         "float32" => FieldTypes.Float32,
         "float64" => FieldTypes.Float64,
         "boolean" => FieldTypes.Boolean,
-        _ => 0 // non-scalar: string, enum, bits, array, struct, padding
+        "string" => FieldTypes.String,
+        "enum" => FieldTypes.Enum,
+        "bits" => FieldTypes.Bits,
+        "padding" => FieldTypes.Padding,
+        _ => 0 // composite: array, struct (Phase 5)
     };
 
     private static int ComputeTotalFixedSize(BinaryContractNode[] orderedFields)

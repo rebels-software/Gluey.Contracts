@@ -62,6 +62,8 @@ public readonly struct ParsedProperty
     private readonly byte _format;      // 0 = UTF-8/JSON (default), 1 = Binary
     private readonly byte _endianness;   // 0 = little-endian, 1 = big-endian (only meaningful when _format == 1)
     private readonly byte _fieldType;    // 0 = unset (JSON), 1-13 = binary field type (see FieldTypes)
+    private readonly byte _encoding;     // bits 0: 0=UTF-8, 1=ASCII; bits 2-3: trim mode (0=plain, 1=trimStart, 2=trimEnd, 3=trim)
+    private readonly Dictionary<string, string>? _enumValues; // Enum value mapping for lazy GetString() lookup
 
     /// <summary>
     /// Creates a new <see cref="ParsedProperty"/> pointing into the given byte buffer.
@@ -85,6 +87,8 @@ public readonly struct ParsedProperty
         _format = 0;
         _endianness = 0;
         _fieldType = 0;
+        _encoding = 0;
+        _enumValues = null;
     }
 
     /// <summary>
@@ -115,6 +119,8 @@ public readonly struct ParsedProperty
         _format = 0;
         _endianness = 0;
         _fieldType = 0;
+        _encoding = 0;
+        _enumValues = null;
     }
 
     /// <summary>
@@ -136,6 +142,8 @@ public readonly struct ParsedProperty
         _format = 0;
         _endianness = 0;
         _fieldType = 0;
+        _encoding = 0;
+        _enumValues = null;
     }
 
     /// <summary>
@@ -155,6 +163,8 @@ public readonly struct ParsedProperty
         _format = format;
         _endianness = endianness;
         _fieldType = 0;
+        _encoding = 0;
+        _enumValues = null;
     }
 
     /// <summary>
@@ -174,6 +184,50 @@ public readonly struct ParsedProperty
         _format = format;
         _endianness = endianness;
         _fieldType = fieldType;
+        _encoding = 0;
+        _enumValues = null;
+    }
+
+    /// <summary>
+    /// Creates a new <see cref="ParsedProperty"/> for binary string fields with encoding and trim mode metadata.
+    /// </summary>
+    internal ParsedProperty(byte[] buffer, int offset, int length, string path, byte format, byte endianness, byte fieldType, byte encoding)
+    {
+        _buffer = buffer;
+        _offset = offset;
+        _length = length;
+        _path = path;
+        _childTable = default;
+        _childOrdinals = null;
+        _directChildren = null;
+        _arrayBuffer = null;
+        _arrayOrdinal = -1;
+        _format = format;
+        _endianness = endianness;
+        _fieldType = fieldType;
+        _encoding = encoding;
+        _enumValues = null;
+    }
+
+    /// <summary>
+    /// Creates a new <see cref="ParsedProperty"/> for binary enum label fields with lazy dictionary lookup.
+    /// </summary>
+    internal ParsedProperty(byte[] buffer, int offset, int length, string path, byte format, byte endianness, byte fieldType, Dictionary<string, string>? enumValues)
+    {
+        _buffer = buffer;
+        _offset = offset;
+        _length = length;
+        _path = path;
+        _childTable = default;
+        _childOrdinals = null;
+        _directChildren = null;
+        _arrayBuffer = null;
+        _arrayOrdinal = -1;
+        _format = format;
+        _endianness = endianness;
+        _fieldType = fieldType;
+        _encoding = 0;
+        _enumValues = enumValues;
     }
 
     /// <summary>
@@ -195,6 +249,8 @@ public readonly struct ParsedProperty
         _format = format;
         _endianness = endianness;
         _fieldType = 0;
+        _encoding = 0;
+        _enumValues = null;
     }
 
     /// <summary>
@@ -216,6 +272,8 @@ public readonly struct ParsedProperty
         _format = format;
         _endianness = endianness;
         _fieldType = fieldType;
+        _encoding = 0;
+        _enumValues = null;
     }
 
     /// <summary>The RFC 6901 JSON Pointer path for this property.</summary>
@@ -283,8 +341,43 @@ public readonly struct ParsedProperty
         if (_length == 0) return string.Empty;
         if (_format == 0)
             return Encoding.UTF8.GetString(_buffer, _offset, _length);
-        // Binary path: UTF-8 decode (encoding-specific logic deferred to Phase 4)
-        return Encoding.UTF8.GetString(_buffer, _offset, _length);
+        // Binary path
+        if (_fieldType == FieldTypes.Enum)
+        {
+            // Enum label: lazy dictionary lookup
+            if (_enumValues is not null)
+            {
+                // Read raw value as string key
+                string key = _buffer[_offset].ToString();
+                if (_enumValues.TryGetValue(key, out string? label))
+                    return label;
+                return key; // unmapped: return numeric as string per D-08
+            }
+            return _buffer[_offset].ToString();
+        }
+        if (_fieldType == FieldTypes.String || _fieldType == FieldTypes.None)
+        {
+            var span = _buffer.AsSpan(_offset, _length);
+            // Apply trim mode: bits 2-3 of _encoding (0=plain, 1=trimStart, 2=trimEnd, 3=trim)
+            byte mode = (byte)((_encoding >> 2) & 0x03);
+            if (mode == 1 || mode == 3) // trimStart or trim
+                span = span.TrimStart((byte)0);
+            if (mode == 2 || mode == 3) // trimEnd or trim
+            {
+                // Trim trailing null bytes and ASCII whitespace (0x00, 0x20, 0x09, 0x0A, 0x0D)
+                int end = span.Length;
+                while (end > 0 && (span[end - 1] == 0x00 || span[end - 1] == 0x20 || span[end - 1] == 0x09 || span[end - 1] == 0x0A || span[end - 1] == 0x0D))
+                    end--;
+                span = span.Slice(0, end);
+            }
+            // Decode with appropriate encoding
+            bool isAscii = (_encoding & 0x01) == 1;
+            return isAscii
+                ? Encoding.ASCII.GetString(span)
+                : Encoding.UTF8.GetString(span);
+        }
+        // Non-string, non-enum binary field: type strictness
+        throw new InvalidOperationException($"Cannot read String from field of type '{GetFieldTypeName()}' at path '{_path}'.");
     }
 
     /// <summary>

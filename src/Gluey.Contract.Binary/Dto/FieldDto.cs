@@ -40,6 +40,9 @@ internal sealed class FieldDto
     [JsonPropertyName("encoding")]
     public string? Encoding { get; set; }
 
+    [JsonPropertyName("mode")]
+    public string? Mode { get; set; }
+
     [JsonPropertyName("validation")]
     public ValidationDto? Validation { get; set; }
 

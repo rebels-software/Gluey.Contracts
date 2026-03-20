@@ -583,8 +583,9 @@ internal sealed class ScalarParsingTests
         // byte1 should parse correctly as scalar
         result["byte1"].GetUInt8().Should().Be(0x42);
 
-        // label is a string field (non-scalar), should be empty
-        result["label"].HasValue.Should().BeFalse();
+        // label is a string field, now parsed as leaf type (Phase 4)
+        result["label"].HasValue.Should().BeTrue();
+        result["label"].GetString().Should().Be("ABCD");
 
         // byte2 should parse correctly at correct offset (precomputed by chain resolver)
         result["byte2"].GetUInt8().Should().Be(0x99);

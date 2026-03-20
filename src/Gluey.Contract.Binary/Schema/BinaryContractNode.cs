@@ -56,6 +56,9 @@ internal sealed class BinaryContractNode
     /// <summary>String encoding (e.g. "ASCII", "UTF-8"). Null for non-string types.</summary>
     internal string? Encoding { get; init; }
 
+    /// <summary>String trim mode: 0=plain, 1=trimStart, 2=trimEnd (default), 3=trim. Only for string fields.</summary>
+    internal byte StringMode { get; init; }
+
     // -- Resolved at load time (set by BinaryChainResolver in Plan 02) --
 
     /// <summary>Absolute byte offset in the payload, computed from the dependency chain.</summary>

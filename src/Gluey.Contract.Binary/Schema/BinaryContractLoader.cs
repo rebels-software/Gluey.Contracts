@@ -106,6 +106,7 @@ internal static class BinaryContractLoader
             Type = fieldType,
             Size = dto.Size ?? 0,
             Encoding = dto.Encoding,
+            StringMode = MapStringMode(dto.Mode),
             Endianness = dto.Endianness,
             DisplayName = dto.DisplayName,
             XDescription = dto.XDescription,
@@ -226,6 +227,16 @@ internal static class BinaryContractLoader
 
         return new ValidationRules(dto.Min, dto.Max, dto.Pattern, dto.MinLength, dto.MaxLength);
     }
+
+    private static byte MapStringMode(string? mode) => mode switch
+    {
+        "plain" => 0,
+        "trimStart" => 1,
+        "trimEnd" => 2,
+        "trim" => 3,
+        null => 2, // default: trimEnd per D-02
+        _ => 2     // unknown: default to trimEnd
+    };
 
     private static SchemaErrorInfo? MapErrorInfo(JsonElement? xError)
     {
