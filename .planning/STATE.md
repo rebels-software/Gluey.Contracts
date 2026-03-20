@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-03-20T19:48:55.027Z"
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-03-20T19:52:40.967Z"
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 9
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 ## Current Position
 
 Phase: 04 (leaf-types) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Plan: 2 of 3
 | Phase 03-scalar-parsing P01 | 5min | 2 tasks | 4 files |
 | Phase 03-scalar-parsing P02 | 2min | 1 tasks | 1 files |
 | Phase 04-leaf-types P01 | 4min | 2 tasks | 7 files |
+| Phase 04-leaf-types P02 | 2min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,8 @@ Recent decisions affecting current work:
 - [Phase 04-leaf-types]: Encoding byte packs charset (bit 0) and trim mode (bits 2-3) into single byte for minimal struct growth
 - [Phase 04-leaf-types]: Enum label lookup deferred to GetString() via Dictionary reference on ParsedProperty
 - [Phase 04-leaf-types]: String fields now parsed in main Parse() loop instead of skipped as non-scalar
+- [Phase 04-leaf-types]: Bit sub-field values stored in per-parse scratch buffer rather than modifying payload data
+- [Phase 04-leaf-types]: Enum raw access uses primitive type from EnumPrimitive, not FieldTypes.Enum
 
 ### Pending Todos
 
@@ -92,6 +95,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T19:48:55.024Z
-Stopped at: Completed 04-01-PLAN.md
+Last session: 2026-03-20T19:52:40.964Z
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None
