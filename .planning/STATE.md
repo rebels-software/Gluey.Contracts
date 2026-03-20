@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-03-20T18:32:17.930Z"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-03-20T18:36:59.524Z"
 progress:
   total_phases: 7
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -52,6 +52,7 @@ Plan: 2 of 2
 | Phase 02-contract-model P02 | 2min | 1 task | 2 files |
 | Phase 02-contract-model P03 | 6min | 2 tasks | 6 files |
 | Phase 03-scalar-parsing P01 | 5min | 2 tasks | 4 files |
+| Phase 03-scalar-parsing P02 | 2min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,7 @@ Recent decisions affecting current work:
 - [Phase 03-scalar-parsing]: FieldTypes as internal static class with byte constants for zero-overhead comparison
 - [Phase 03-scalar-parsing]: Type strictness bypassed when _fieldType == None for backward compat with old binary constructor
 - [Phase 03-scalar-parsing]: Parse(byte[]) is primary implementation; Parse(ReadOnlySpan<byte>) delegates via ToArray()
+- [Phase 03-scalar-parsing]: Kept Plan 01 unit-level tests alongside 24 new end-to-end tests in same ScalarParsingTests class
 
 ### Pending Todos
 
@@ -86,6 +88,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-20T18:32:17.927Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-03-20T18:36:59.521Z
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None
