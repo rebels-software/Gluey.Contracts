@@ -38,14 +38,14 @@ created: 2026-03-20
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 03-01-01 | 01 | 1 | SCLR-01 | unit | `dotnet test tests/Gluey.Contract.Binary.Tests -f net9.0 --filter "FullyQualifiedName~ScalarParsing" --no-restore -v q` | ❌ W0 | ⬜ pending |
-| 03-01-02 | 01 | 1 | SCLR-02 | unit | same filter | ❌ W0 | ⬜ pending |
-| 03-01-03 | 01 | 1 | SCLR-03 | unit | same filter | ❌ W0 | ⬜ pending |
-| 03-01-04 | 01 | 1 | SCLR-04 | unit | same filter | ❌ W0 | ⬜ pending |
-| 03-01-05 | 01 | 1 | SCLR-05 | unit | same filter | ❌ W0 | ⬜ pending |
-| 03-01-06 | 01 | 1 | SCLR-06 | unit | same filter | ❌ W0 | ⬜ pending |
-| 03-01-07 | 01 | 1 | CORE-04 | unit | same filter | ❌ W0 | ⬜ pending |
-| 03-01-08 | 01 | 1 | CORE-05 | unit | same filter | ❌ W0 | ⬜ pending |
+| 03-02-01 | 02 | 2 | SCLR-01 | unit | `dotnet test tests/Gluey.Contract.Binary.Tests -f net9.0 --filter "FullyQualifiedName~ScalarParsing" --no-restore -v q` | ❌ | ⬜ pending |
+| 03-02-02 | 02 | 2 | SCLR-02 | unit | same filter | ❌ | ⬜ pending |
+| 03-02-03 | 02 | 2 | SCLR-03 | unit | same filter | ❌ | ⬜ pending |
+| 03-02-04 | 02 | 2 | SCLR-04 | unit | same filter | ❌ | ⬜ pending |
+| 03-02-05 | 02 | 2 | SCLR-05 | unit | same filter | ❌ | ⬜ pending |
+| 03-02-06 | 02 | 2 | SCLR-06 | unit | same filter | ❌ | ⬜ pending |
+| 03-02-07 | 02 | 2 | CORE-04 | unit | same filter | ❌ | ⬜ pending |
+| 03-02-08 | 02 | 2 | CORE-05 | unit | same filter | ❌ | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -53,9 +53,7 @@ created: 2026-03-20
 
 ## Wave 0 Requirements
 
-- [ ] `tests/Gluey.Contract.Binary.Tests/ScalarParsingTests.cs` — stubs for SCLR-01 through SCLR-06, CORE-04
-- [ ] Test contract JSON files (pure-scalar contracts for big-endian, little-endian, mixed, truncated cases)
-- No framework install needed — NUnit + FluentAssertions already configured
+No Wave 0 plan — implementation-first ordering chosen deliberately. Tests are created in Plan 03-02 (Wave 2) after implementation in Plan 03-01 (Wave 1). Framework already configured (NUnit + FluentAssertions).
 
 ---
 

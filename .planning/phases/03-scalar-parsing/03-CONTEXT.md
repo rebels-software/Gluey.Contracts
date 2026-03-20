@@ -32,7 +32,7 @@ First end-to-end binary parse pipeline. `BinaryContractSchema.Parse(byte[])` ret
 
 ### Parse API surface
 - Two overloads: Parse(byte[]) and Parse(ReadOnlySpan<byte>) — mirrors JsonContractSchema exactly
-- Span overload is the real implementation; byte[] delegates to it
+- byte[] overload is the primary implementation; Span overload allocates via ToArray() and delegates to Parse(byte[]) (spans cannot be stored in ParsedProperty which requires a byte[] reference)
 - Returns ParseResult? — null means payload is shorter than the contract's TotalFixedSize (structurally invalid)
 - parsed["fieldName"] returns ParsedProperty, consumer calls GetXxx() — identical to JSON access pattern
 
