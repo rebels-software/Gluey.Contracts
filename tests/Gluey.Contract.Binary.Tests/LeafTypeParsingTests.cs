@@ -50,6 +50,77 @@ internal sealed class LeafTypeParsingTests
         }
         """;
 
+    // Contract 3: Bit fields (8-bit container)
+    private const string BitField8ContractJson = """
+        {
+          "kind": "binary",
+          "endianness": "little",
+          "fields": {
+            "flags": {
+              "type": "bits",
+              "size": 1,
+              "fields": {
+                "isCharging": { "bit": 0, "bits": 1, "type": "boolean" },
+                "errorCode":  { "bit": 1, "bits": 4, "type": "uint8" },
+                "priority":   { "bit": 5, "bits": 3, "type": "uint8" }
+              }
+            }
+          }
+        }
+        """;
+
+    // Contract 4a: 16-bit bit container (big-endian)
+    private const string BitField16BigEndianContractJson = """
+        {
+          "kind": "binary",
+          "endianness": "big",
+          "fields": {
+            "status": {
+              "type": "bits",
+              "size": 2,
+              "fields": {
+                "alarm":    { "bit": 0, "bits": 1, "type": "boolean" },
+                "severity": { "bit": 1, "bits": 3, "type": "uint8" },
+                "code":     { "bit": 8, "bits": 8, "type": "uint8" }
+              }
+            }
+          }
+        }
+        """;
+
+    // Contract 4b: 16-bit bit container (little-endian)
+    private const string BitField16LittleEndianContractJson = """
+        {
+          "kind": "binary",
+          "endianness": "little",
+          "fields": {
+            "status": {
+              "type": "bits",
+              "size": 2,
+              "fields": {
+                "alarm":    { "bit": 0, "bits": 1, "type": "boolean" },
+                "severity": { "bit": 1, "bits": 3, "type": "uint8" },
+                "code":     { "bit": 8, "bits": 8, "type": "uint8" }
+              }
+            }
+          }
+        }
+        """;
+
+    // Contract 5: Padding
+    // header(uint8,1) + reserved(padding,3) + value(uint16,2) = 6 bytes
+    private const string PaddingContractJson = """
+        {
+          "kind": "binary",
+          "endianness": "little",
+          "fields": {
+            "header":   { "type": "uint8", "size": 1 },
+            "reserved": { "dependsOn": "header", "type": "padding", "size": 3 },
+            "value":    { "dependsOn": "reserved", "type": "uint16", "size": 2 }
+          }
+        }
+        """;
+
     // Contract 2: Enum fields
     private const string EnumContractJson = """
         {
@@ -226,5 +297,161 @@ internal sealed class LeafTypeParsingTests
         using var result = schema.Parse(payload)!.Value;
 
         result["modes"].GetString().Should().Be("idle");
+    }
+
+    // ================================================================
+    // Bit field tests (BITS-01, BITS-02, BITS-03, BITS-04)
+    // ================================================================
+
+    [Test]
+    public void BitField_8bit_BooleanSubField_ReturnsTrue()
+    {
+        var schema = BinaryContractSchema.Load(BitField8ContractJson)!;
+        // 0x07 = 00000111: bit0=1 (isCharging=true)
+        var payload = new byte[] { 0x07 };
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["flags/isCharging"].GetBoolean().Should().BeTrue();
+    }
+
+    [Test]
+    public void BitField_8bit_BooleanSubField_ReturnsFalse()
+    {
+        var schema = BinaryContractSchema.Load(BitField8ContractJson)!;
+        // 0x06 = 00000110: bit0=0 (isCharging=false)
+        var payload = new byte[] { 0x06 };
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["flags/isCharging"].GetBoolean().Should().BeFalse();
+    }
+
+    [Test]
+    public void BitField_8bit_NumericSubField_ExtractsCorrectValue()
+    {
+        var schema = BinaryContractSchema.Load(BitField8ContractJson)!;
+        // 0x07 = 00000111: bits1-4 = 0011 = 3 (errorCode)
+        var payload = new byte[] { 0x07 };
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["flags/errorCode"].GetUInt8().Should().Be(3);
+    }
+
+    [Test]
+    public void BitField_8bit_MultipleSubFields()
+    {
+        var schema = BinaryContractSchema.Load(BitField8ContractJson)!;
+        // 0xA7 = 10100111:
+        //   bit0 = 1 -> isCharging = true
+        //   bits1-4 = 0011 -> errorCode = 3
+        //   bits5-7 = 101 -> priority = 5
+        var payload = new byte[] { 0xA7 };
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["flags/isCharging"].GetBoolean().Should().BeTrue();
+        result["flags/errorCode"].GetUInt8().Should().Be(3);
+        result["flags/priority"].GetUInt8().Should().Be(5);
+    }
+
+    [Test]
+    public void BitField_8bit_ContainerAccessible()
+    {
+        var schema = BinaryContractSchema.Load(BitField8ContractJson)!;
+        // D-10: container itself is accessible
+        var payload = new byte[] { 0xA7 };
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["flags"].GetUInt8().Should().Be(0xA7);
+    }
+
+    [Test]
+    public void BitField_16bit_BigEndian_ExtractsCorrectly()
+    {
+        var schema = BinaryContractSchema.Load(BitField16BigEndianContractJson)!;
+        // Big-endian bytes [0x03, 0x05] -> uint16 = 0x0305
+        // 0x0305 = 0000001100000101
+        //   bit0 = 1 -> alarm = true
+        //   bits1-3 = 010 -> severity = 2
+        //   bits8-15 = 00000011 -> code = 3
+        var payload = new byte[] { 0x03, 0x05 };
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["status/alarm"].GetBoolean().Should().BeTrue();
+        result["status/severity"].GetUInt8().Should().Be(2);
+        result["status/code"].GetUInt8().Should().Be(3);
+    }
+
+    [Test]
+    public void BitField_16bit_LittleEndian_ExtractsCorrectly()
+    {
+        var schema = BinaryContractSchema.Load(BitField16LittleEndianContractJson)!;
+        // Same logical value 0x0305 but little-endian: bytes [0x05, 0x03]
+        // uint16 LE read of [0x05, 0x03] = 0x0305
+        //   bit0 = 1 -> alarm = true
+        //   bits1-3 = 010 -> severity = 2
+        //   bits8-15 = 00000011 -> code = 3
+        var payload = new byte[] { 0x05, 0x03 };
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["status/alarm"].GetBoolean().Should().BeTrue();
+        result["status/severity"].GetUInt8().Should().Be(2);
+        result["status/code"].GetUInt8().Should().Be(3);
+    }
+
+    [Test]
+    public void BitField_16bit_ContainerAccessible()
+    {
+        var schema = BinaryContractSchema.Load(BitField16BigEndianContractJson)!;
+        // D-10: 16-bit container accessible
+        var payload = new byte[] { 0x03, 0x05 };
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["status"].GetUInt16().Should().Be(0x0305);
+    }
+
+    // ================================================================
+    // Padding tests (COMP-04)
+    // ================================================================
+
+    [Test]
+    public void Padding_FieldNotExposedInResult()
+    {
+        var schema = BinaryContractSchema.Load(PaddingContractJson)!;
+        // header=0xFF, reserved=3 bytes padding, value=0x012C (300 LE)
+        var payload = new byte[] { 0xFF, 0x00, 0x00, 0x00, 0x2C, 0x01 };
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["reserved"].HasValue.Should().BeFalse();
+    }
+
+    [Test]
+    public void Padding_SkipsBytesCorrectly()
+    {
+        var schema = BinaryContractSchema.Load(PaddingContractJson)!;
+        // header=0xFF, reserved=3 bytes padding, value=0x012C (300 LE) at offset 4
+        var payload = new byte[] { 0xFF, 0x00, 0x00, 0x00, 0x2C, 0x01 };
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["value"].GetUInt16().Should().Be(300);
+    }
+
+    [Test]
+    public void Padding_HeaderStillAccessible()
+    {
+        var schema = BinaryContractSchema.Load(PaddingContractJson)!;
+        var payload = new byte[] { 0xFF, 0x00, 0x00, 0x00, 0x2C, 0x01 };
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["header"].GetUInt8().Should().Be(0xFF);
     }
 }
