@@ -61,10 +61,11 @@ Plans:
   3. Truncated numerics (e.g., int32 in 3 bytes) sign-extend correctly for signed types and zero-pad for unsigned types
   4. Payload shorter than the contract's fixed size returns null (not an exception)
   5. Parse path uses ArrayPool with no heap allocations on the hot path
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 03-01: TBD
+- [ ] 03-01-PLAN.md — Extend ParsedProperty with field type metadata and unsigned accessors, add Parse() to BinaryContractSchema
+- [ ] 03-02-PLAN.md — End-to-end scalar parsing tests covering all requirements
 
 ### Phase 4: Leaf Types
 **Goal**: All non-composite field types parse correctly: strings, enums, bit fields, and padding
@@ -133,7 +134,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 |-------|----------------|--------|-----------|
 | 1. Format Flag | 0/1 | Planning complete | - |
 | 2. Contract Model | 3/3 | Complete   | 2026-03-19 |
-| 3. Scalar Parsing | 0/? | Not started | - |
+| 3. Scalar Parsing | 0/2 | Planning complete | - |
 | 4. Leaf Types | 0/? | Not started | - |
 | 5. Composite Types | 0/? | Not started | - |
 | 6. Validation | 0/? | Not started | - |
