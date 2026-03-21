@@ -98,7 +98,7 @@ Plans:
 Plans:
 - [x] 05-01-PLAN.md — Fixed array element expansion with NameToOrdinal clone, ArrayBuffer, and container ParsedProperty
 - [x] 05-02-PLAN.md — Semi-dynamic array support with Pass 2 dynamic offset recomputation
-- [ ] 05-03-PLAN.md — End-to-end composite type parsing tests covering all 4 requirements
+- [x] 05-03-PLAN.md — End-to-end composite type parsing tests covering all 4 requirements
 
 ### Phase 6: Validation
 **Goal**: Parsed values are validated against contract-defined constraints with all errors collected
