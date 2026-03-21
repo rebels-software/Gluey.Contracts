@@ -93,10 +93,12 @@ Plans:
   2. Semi-dynamic arrays (count referencing another field) resolve the element count at parse time
   3. Struct elements inside arrays have scoped dependency chains with offsets relative to element start
   4. Path-based access works for nested elements: parsed["arrayName/0/fieldName"] returns the correct value
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 05-01: TBD
+- [ ] 05-01-PLAN.md — Fixed array element expansion with NameToOrdinal clone, ArrayBuffer, and container ParsedProperty
+- [ ] 05-02-PLAN.md — Semi-dynamic array support with Pass 2 dynamic offset recomputation
+- [ ] 05-03-PLAN.md — End-to-end composite type parsing tests covering all 4 requirements
 
 ### Phase 6: Validation
 **Goal**: Parsed values are validated against contract-defined constraints with all errors collected
@@ -138,6 +140,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 2. Contract Model | 3/3 | Complete   | 2026-03-19 |
 | 3. Scalar Parsing | 2/2 | Complete   | 2026-03-20 |
 | 4. Leaf Types | 3/3 | Complete   | 2026-03-20 |
-| 5. Composite Types | 0/? | Not started | - |
+| 5. Composite Types | 0/3 | Planning complete | - |
 | 6. Validation | 0/? | Not started | - |
 | 7. Packaging | 0/? | Not started | - |
