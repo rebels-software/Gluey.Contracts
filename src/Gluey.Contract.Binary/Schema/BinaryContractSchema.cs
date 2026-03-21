@@ -228,17 +228,25 @@ public class BinaryContractSchema
         var arrayBuffer = ArrayBuffer.Rent(initialCapacity: 16, maxOrdinal: 16);
         int arrayRegionIndex = 0;
 
-        // Compute expanded OffsetTable capacity for fixed array elements
+        // Compute expanded OffsetTable capacity for fixed array elements + semi-dynamic headroom
         int expandedCapacity = TotalOrdinalCapacity;
         for (int i = 0; i < OrderedFields.Length; i++)
         {
             var node = OrderedFields[i];
-            if (node.Type == "array" && node.Count is int fixedCount && node.ArrayElement is not null)
+            if (node.Type == "array" && node.ArrayElement is not null)
             {
-                if (node.ArrayElement.StructFields is not null && node.ArrayElement.StructFields.Length > 0)
-                    expandedCapacity += fixedCount * node.ArrayElement.StructFields.Length;
-                else
-                    expandedCapacity += fixedCount;
+                if (node.Count is int fixedCount)
+                {
+                    if (node.ArrayElement.StructFields is not null && node.ArrayElement.StructFields.Length > 0)
+                        expandedCapacity += fixedCount * node.ArrayElement.StructFields.Length;
+                    else
+                        expandedCapacity += fixedCount;
+                }
+                else if (node.Count is string)
+                {
+                    // Semi-dynamic: add headroom (actual count unknown until parse time)
+                    expandedCapacity += 64;
+                }
             }
         }
 
@@ -251,21 +259,47 @@ public class BinaryContractSchema
 
         // Track next dynamic ordinal for array element entries (beyond pre-allocated range)
         int nextDynamicOrdinal = TotalOrdinalCapacity;
+        int pass2StartIndex = -1;
 
         for (int i = 0; i < OrderedFields.Length; i++)
         {
             var node = OrderedFields[i];
 
             if (node.IsDynamicOffset)
+            {
+                pass2StartIndex = i;
                 break;
+            }
 
             byte fieldType = GetFieldType(node.Type);
             if (fieldType == 0)
             {
                 // Handle array type nodes
-                if (node.Type == "array" && node.Count is int arrayCount && node.ArrayElement is not null)
+                if (node.Type == "array" && node.ArrayElement is not null)
                 {
-                    int count = arrayCount;
+                    int count;
+                    if (node.Count is int arrayCount)
+                    {
+                        count = arrayCount;
+                    }
+                    else if (node.Count is string countFieldName)
+                    {
+                        // Semi-dynamic: resolve count from already-parsed field (D-06)
+                        if (parseNameToOrdinal.TryGetValue(countFieldName, out int countOrdinal))
+                        {
+                            var countProp = offsetTable[countOrdinal];
+                            count = (int)countProp.GetUInt32();
+                        }
+                        else
+                        {
+                            count = 0; // Count field not found -- treat as zero-count
+                        }
+                    }
+                    else
+                    {
+                        continue; // no valid count
+                    }
+
                     var elemInfo = node.ArrayElement;
 
                     // Graceful degradation (D-05): clamp count by available payload bytes
@@ -437,6 +471,230 @@ public class BinaryContractSchema
             }
         }
 
+        // Pass 2: Dynamic-offset fields (D-10, D-11)
+        if (pass2StartIndex >= 0)
+        {
+            // Compute running offset from end of last fixed field
+            int runningOffset = 0;
+            if (pass2StartIndex > 0)
+            {
+                var lastFixed = OrderedFields[pass2StartIndex - 1];
+                int lastFixedSize = ComputeActualFieldSize(lastFixed, offsetTable, parseNameToOrdinal);
+                runningOffset = lastFixed.AbsoluteOffset + lastFixedSize;
+            }
+
+            for (int i = pass2StartIndex; i < OrderedFields.Length; i++)
+            {
+                var node = OrderedFields[i];
+                int actualOffset = runningOffset;
+
+                byte fieldType = GetFieldType(node.Type);
+                if (fieldType == 0)
+                {
+                    // Handle array type nodes in Pass 2
+                    if (node.Type == "array" && node.ArrayElement is not null)
+                    {
+                        int count;
+                        if (node.Count is int arrayCount)
+                        {
+                            count = arrayCount;
+                        }
+                        else if (node.Count is string countFieldName)
+                        {
+                            // Semi-dynamic: resolve count from already-parsed field (D-06)
+                            if (parseNameToOrdinal.TryGetValue(countFieldName, out int countOrdinal))
+                            {
+                                var countProp = offsetTable[countOrdinal];
+                                count = (int)countProp.GetUInt32();
+                            }
+                            else
+                            {
+                                count = 0;
+                            }
+                        }
+                        else
+                        {
+                            continue;
+                        }
+
+                        var elemInfo = node.ArrayElement;
+
+                        // Graceful degradation (D-05): clamp count by available payload bytes
+                        int elementSize = elemInfo.Size;
+                        int availableBytes = data.Length - actualOffset;
+                        if (availableBytes < 0) availableBytes = 0;
+                        int maxFit = elementSize > 0 ? availableBytes / elementSize : 0;
+                        if (maxFit < count) count = maxFit;
+
+                        int currentArrayRegion = arrayRegionIndex++;
+
+                        if (elemInfo.Type == "struct" && elemInfo.StructFields is not null)
+                        {
+                            for (int e = 0; e < count; e++)
+                            {
+                                int elementBase = actualOffset + (e * elementSize);
+
+                                foreach (var sf in elemInfo.StructFields)
+                                {
+                                    int sfOffset = elementBase + sf.AbsoluteOffset;
+                                    byte sfFieldType = GetFieldType(sf.Type);
+                                    string sfPath = node.Name + "/" + e + "/" + sf.Name;
+
+                                    // Bounds check (D-11)
+                                    if (sfOffset + sf.Size > data.Length)
+                                        continue;
+
+                                    var sfProp = new ParsedProperty(
+                                        data, sfOffset, sf.Size, "/" + sfPath,
+                                        /*format:*/ 1, sf.ResolvedEndianness, sfFieldType);
+                                    parseNameToOrdinal[sfPath] = nextDynamicOrdinal;
+                                    offsetTable.Set(nextDynamicOrdinal, sfProp);
+                                    nextDynamicOrdinal++;
+                                }
+
+                                var structElemProp = new ParsedProperty(
+                                    data, elementBase, elementSize, "/" + node.Name + "/" + e,
+                                    /*format:*/ 1, node.ResolvedEndianness, FieldTypes.None,
+                                    offsetTable, parseNameToOrdinal, null, -1);
+                                arrayBuffer.Add(currentArrayRegion, structElemProp);
+                            }
+                        }
+                        else
+                        {
+                            byte elemFieldType = GetFieldType(elemInfo.Type);
+                            for (int e = 0; e < count; e++)
+                            {
+                                int elemOffset = actualOffset + (e * elementSize);
+                                string elemPath = node.Name + "/" + e;
+
+                                // Bounds check (D-11)
+                                if (elemOffset + elementSize > data.Length)
+                                    break;
+
+                                var elemProp = new ParsedProperty(
+                                    data, elemOffset, elementSize, "/" + elemPath,
+                                    /*format:*/ 1, node.ResolvedEndianness, elemFieldType);
+                                arrayBuffer.Add(currentArrayRegion, elemProp);
+                                parseNameToOrdinal[elemPath] = nextDynamicOrdinal;
+                                offsetTable.Set(nextDynamicOrdinal, elemProp);
+                                nextDynamicOrdinal++;
+                            }
+                        }
+
+                        int totalArrayBytes = count * elementSize;
+                        var containerProp = new ParsedProperty(
+                            data, actualOffset, totalArrayBytes, "/" + node.Name,
+                            /*format:*/ 1, node.ResolvedEndianness, FieldTypes.None,
+                            offsetTable, parseNameToOrdinal, arrayBuffer, currentArrayRegion);
+                        offsetTable.Set(i, containerProp);
+
+                        runningOffset += totalArrayBytes;
+                        continue;
+                    }
+
+                    continue; // unknown composite type
+                }
+
+                // Bounds check for non-array fields (D-11)
+                if (actualOffset + node.Size > data.Length)
+                {
+                    runningOffset += node.Size;
+                    continue;
+                }
+
+                switch (fieldType)
+                {
+                    case FieldTypes.Padding:
+                        runningOffset += node.Size;
+                        break;
+
+                    case FieldTypes.String:
+                    {
+                        byte encodingByte = (byte)((node.Encoding == "ASCII" ? 1 : 0) | (node.StringMode << 2));
+                        var prop = new ParsedProperty(
+                            data, actualOffset, node.Size,
+                            "/" + node.Name, /*format:*/ 1, node.ResolvedEndianness,
+                            FieldTypes.String, encodingByte);
+                        offsetTable.Set(i, prop);
+                        runningOffset += node.Size;
+                        break;
+                    }
+
+                    case FieldTypes.Enum:
+                    {
+                        byte enumPrimitiveType = GetFieldType(node.EnumPrimitive ?? "uint8");
+                        var rawProp = new ParsedProperty(
+                            data, actualOffset, node.Size,
+                            "/" + node.Name, /*format:*/ 1, node.ResolvedEndianness, enumPrimitiveType);
+                        offsetTable.Set(i, rawProp);
+
+                        if (NameToOrdinal.TryGetValue(node.Name + "s", out int suffixedOrdinal))
+                        {
+                            var labelProp = new ParsedProperty(
+                                data, actualOffset, node.Size,
+                                "/" + node.Name + "s", /*format:*/ 1, node.ResolvedEndianness,
+                                FieldTypes.Enum, node.EnumValues);
+                            offsetTable.Set(suffixedOrdinal, labelProp);
+                        }
+                        runningOffset += node.Size;
+                        break;
+                    }
+
+                    case FieldTypes.Bits:
+                    {
+                        var containerProp = new ParsedProperty(
+                            data, actualOffset, node.Size,
+                            "/" + node.Name, /*format:*/ 1, node.ResolvedEndianness,
+                            node.Size == 1 ? FieldTypes.UInt8 : FieldTypes.UInt16);
+                        offsetTable.Set(i, containerProp);
+
+                        if (node.BitFields is not null)
+                        {
+                            uint containerValue;
+                            if (node.Size == 1)
+                            {
+                                containerValue = data[actualOffset];
+                            }
+                            else
+                            {
+                                containerValue = node.ResolvedEndianness == 0
+                                    ? BinaryPrimitives.ReadUInt16LittleEndian(data.AsSpan(actualOffset, 2))
+                                    : BinaryPrimitives.ReadUInt16BigEndian(data.AsSpan(actualOffset, 2));
+                            }
+
+                            foreach (var (subName, info) in node.BitFields)
+                            {
+                                uint mask = (1u << info.Bits) - 1;
+                                byte extracted = (byte)((containerValue >> info.Bit) & mask);
+
+                                string subPath = "/" + node.Name + "/" + subName;
+                                if (NameToOrdinal.TryGetValue(node.Name + "/" + subName, out int subOrdinal))
+                                {
+                                    byte subFieldType = GetFieldType(info.Type);
+                                    bitScratchBuffer![bitScratchOffset] = extracted;
+                                    var subProp = new ParsedProperty(
+                                        bitScratchBuffer, bitScratchOffset, 1,
+                                        subPath, /*format:*/ 1, /*endianness:*/ 0, subFieldType);
+                                    offsetTable.Set(subOrdinal, subProp);
+                                    bitScratchOffset++;
+                                }
+                            }
+                        }
+                        runningOffset += node.Size;
+                        break;
+                    }
+
+                    default:
+                        var scalarProp = new ParsedProperty(
+                            data, actualOffset, node.Size,
+                            "/" + node.Name, /*format:*/ 1, node.ResolvedEndianness, fieldType);
+                        offsetTable.Set(i, scalarProp);
+                        runningOffset += node.Size;
+                        break;
+                }
+            }
+        }
+
         return new ParseResult(offsetTable, errors, parseNameToOrdinal, arrayBuffer);
     }
 
@@ -473,6 +731,41 @@ public class BinaryContractSchema
         "padding" => FieldTypes.Padding,
         _ => 0 // composite: array, struct (Phase 5)
     };
+
+    /// <summary>
+    /// Computes the actual byte size of a field at parse time, resolving semi-dynamic array counts
+    /// from the OffsetTable. Used by Pass 2 to compute the running offset accumulator start position.
+    /// </summary>
+    private static int ComputeActualFieldSize(BinaryContractNode node, OffsetTable offsetTable,
+        Dictionary<string, int> parseNameToOrdinal)
+    {
+        if (node.Type != "array" || node.ArrayElement is null)
+            return node.Size;
+
+        int count;
+        if (node.Count is int fixedCount)
+        {
+            count = fixedCount;
+        }
+        else if (node.Count is string countFieldName)
+        {
+            if (parseNameToOrdinal.TryGetValue(countFieldName, out int countOrdinal))
+            {
+                var countProp = offsetTable[countOrdinal];
+                count = (int)countProp.GetUInt32();
+            }
+            else
+            {
+                count = 0;
+            }
+        }
+        else
+        {
+            return node.Size;
+        }
+
+        return count * node.ArrayElement.Size;
+    }
 
     private static int ComputeTotalFixedSize(BinaryContractNode[] orderedFields)
     {
