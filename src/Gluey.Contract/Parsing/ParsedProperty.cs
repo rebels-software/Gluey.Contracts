@@ -302,6 +302,16 @@ public readonly struct ParsedProperty
             {
                 if (_childOrdinals.TryGetValue(name, out int ordinal))
                     return _childTable[ordinal];
+                // Prefix-based lookup: use this property's path to scope child resolution.
+                // For struct array elements like "/errors/0", looking up "code" resolves to "errors/0/code".
+                if (_path is not null && _path.Length > 1)
+                {
+                    var prefixedKey = _path.StartsWith('/')
+                        ? _path.Substring(1) + "/" + name
+                        : _path + "/" + name;
+                    if (_childOrdinals.TryGetValue(prefixedKey, out ordinal))
+                        return _childTable[ordinal];
+                }
                 // Fallback: _childOrdinals keys are full RFC 6901 paths (e.g., "/address/street").
                 // When user calls prop["street"], find the key ending in "/street".
                 foreach (var kvp in _childOrdinals)

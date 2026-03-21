@@ -288,7 +288,7 @@ public class BinaryContractSchema
                         if (parseNameToOrdinal.TryGetValue(countFieldName, out int countOrdinal))
                         {
                             var countProp = offsetTable[countOrdinal];
-                            count = (int)countProp.GetUInt32();
+                            count = ReadCountValue(countProp);
                         }
                         else
                         {
@@ -505,7 +505,7 @@ public class BinaryContractSchema
                             if (parseNameToOrdinal.TryGetValue(countFieldName, out int countOrdinal))
                             {
                                 var countProp = offsetTable[countOrdinal];
-                                count = (int)countProp.GetUInt32();
+                                count = ReadCountValue(countProp);
                             }
                             else
                             {
@@ -714,6 +714,22 @@ public class BinaryContractSchema
 
     // -- Private helpers --
 
+    /// <summary>
+    /// Reads an unsigned integer count from a ParsedProperty using the appropriate typed getter.
+    /// Count fields may be uint8, uint16, or uint32 -- calling GetUInt32() on a uint8 field
+    /// would throw due to type strictness, so we dispatch based on the field's byte size.
+    /// </summary>
+    private static int ReadCountValue(ParsedProperty countProp)
+    {
+        return countProp.RawBytes.Length switch
+        {
+            1 => countProp.GetUInt8(),
+            2 => countProp.GetUInt16(),
+            4 => (int)countProp.GetUInt32(),
+            _ => 0
+        };
+    }
+
     private static byte GetFieldType(string type) => type switch
     {
         "uint8" => FieldTypes.UInt8,
@@ -752,7 +768,7 @@ public class BinaryContractSchema
             if (parseNameToOrdinal.TryGetValue(countFieldName, out int countOrdinal))
             {
                 var countProp = offsetTable[countOrdinal];
-                count = (int)countProp.GetUInt32();
+                count = ReadCountValue(countProp);
             }
             else
             {
