@@ -51,7 +51,7 @@
 ### Composite Types
 
 - [x] **COMP-01**: Fixed arrays: count as number, parser reads N elements of specified type
-- [ ] **COMP-02**: Semi-dynamic arrays: count as string referencing another field, resolved at parse time
+- [x] **COMP-02**: Semi-dynamic arrays: count as string referencing another field, resolved at parse time
 - [x] **COMP-03**: Struct elements inside arrays with scoped dependency chains (sub-field offsets relative to element start)
 - [x] **COMP-04**: Padding fields: parser skips specified number of bytes, not exposed in ParsedObject
 - [x] **COMP-05**: Path-based access: parsed["arrayName/0/fieldName"] works for nested struct array elements
@@ -134,7 +134,7 @@
 | BITS-03 | Phase 4 | Complete |
 | BITS-04 | Phase 4 | Complete |
 | COMP-01 | Phase 5 | Complete |
-| COMP-02 | Phase 5 | Pending |
+| COMP-02 | Phase 5 | Complete |
 | COMP-03 | Phase 5 | Complete |
 | COMP-04 | Phase 4 | Complete |
 | COMP-05 | Phase 5 | Complete |

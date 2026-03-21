@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 05-01-PLAN.md
-last_updated: "2026-03-21T10:45:34.355Z"
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-03-21T10:49:36.093Z"
 progress:
   total_phases: 7
   completed_phases: 4
   total_plans: 12
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 # Project State
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-03-19)
 ## Current Position
 
 Phase: 05 (composite-types) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Plan: 2 of 3
 | Phase 04-leaf-types P02 | 2min | 2 tasks | 1 files |
 | Phase 04-leaf-types P03 | 2min | 2 tasks | 1 files |
 | Phase 05-composite-types P01 | 2min | 1 tasks | 1 files |
+| Phase 05-composite-types P02 | 2min | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -88,6 +89,7 @@ Recent decisions affecting current work:
 - [Phase 04-leaf-types]: Separate test contracts per feature area for isolated, readable leaf type tests
 - [Phase 05-composite-types]: NameToOrdinal cloned at parse start to prevent schema mutation across concurrent/sequential Parse() calls
 - [Phase 05-composite-types]: Struct array elements: sub-fields get O(1) OffsetTable/NameToOrdinal entries; one ArrayBuffer entry per struct element for enumeration
+- [Phase 05-composite-types]: Pass 2 duplicates field-type switch for clarity; ComputeActualFieldSize resolves semi-dynamic counts at runtime; 64-ordinal headroom per semi-dynamic array
 
 ### Pending Todos
 
@@ -100,6 +102,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-21T10:45:34.352Z
-Stopped at: Completed 05-01-PLAN.md
+Last session: 2026-03-21T10:49:36.090Z
+Stopped at: Completed 05-02-PLAN.md
 Resume file: None
