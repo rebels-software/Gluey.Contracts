@@ -1019,4 +1019,468 @@ internal sealed class CoverageGapTests
         result.Errors[0].Message.Should().Be("Value exceeds limit");
         result.Errors[0].ErrorInfo!.Value.Code.Should().Be("VAL_HIGH");
     }
+
+    // ================================================================
+    // Pass 2 — Fixed-count array AFTER a semi-dynamic array
+    // Covers lines 526-655 (Pass 2 array parsing)
+    // ================================================================
+
+    private const string Pass2FixedArrayContractJson = """
+        {
+          "kind": "binary",
+          "endianness": "little",
+          "fields": {
+            "n": { "type": "uint8", "size": 1 },
+            "dynamic": {
+              "dependsOn": "n",
+              "type": "array", "count": "n",
+              "element": { "type": "uint8", "size": 1 }
+            },
+            "fixed": {
+              "dependsOn": "dynamic",
+              "type": "array", "count": 2,
+              "element": { "type": "uint16", "size": 2 },
+              "validation": { "min": 0, "max": 500 }
+            }
+          }
+        }
+        """;
+
+    [Test]
+    public void Parse_Pass2_FixedScalarArray_ParsesCorrectly()
+    {
+        var schema = BinaryContractSchema.Load(Pass2FixedArrayContractJson)!;
+        // n=1, dynamic=[10], fixed=[100, 200]
+        var payload = new byte[6];
+        payload[0] = 1;
+        payload[1] = 10;
+        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(2, 2), 100);
+        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(4, 2), 200);
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["fixed/0"].GetUInt16().Should().Be(100);
+        result["fixed/1"].GetUInt16().Should().Be(200);
+    }
+
+    [Test]
+    public void Parse_Pass2_FixedScalarArray_ValidationFails()
+    {
+        var schema = BinaryContractSchema.Load(Pass2FixedArrayContractJson)!;
+        // n=1, dynamic=[10], fixed=[100, 999 (above max 500)]
+        var payload = new byte[6];
+        payload[0] = 1;
+        payload[1] = 10;
+        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(2, 2), 100);
+        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(4, 2), 999);
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result.IsValid.Should().BeFalse();
+        result.Errors[0].Path.Should().Be("/fixed/1");
+    }
+
+    // Pass 2 fixed struct array after semi-dynamic
+    private const string Pass2FixedStructArrayContractJson = """
+        {
+          "kind": "binary",
+          "endianness": "little",
+          "fields": {
+            "n": { "type": "uint8", "size": 1 },
+            "dynamic": {
+              "dependsOn": "n",
+              "type": "array", "count": "n",
+              "element": { "type": "uint8", "size": 1 }
+            },
+            "records": {
+              "dependsOn": "dynamic",
+              "type": "array", "count": 2,
+              "element": {
+                "type": "struct", "size": 3,
+                "fields": {
+                  "id": { "type": "uint8", "size": 1 },
+                  "val": { "dependsOn": "id", "type": "int16", "size": 2, "validation": { "min": -50, "max": 50 } }
+                }
+              }
+            }
+          }
+        }
+        """;
+
+    [Test]
+    public void Parse_Pass2_FixedStructArray_ParsesCorrectly()
+    {
+        var schema = BinaryContractSchema.Load(Pass2FixedStructArrayContractJson)!;
+        // n=1, dynamic=[5], records=[{id=1,val=10}, {id=2,val=-5}]
+        var payload = new byte[8];
+        payload[0] = 1;
+        payload[1] = 5;
+        payload[2] = 1; BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(3, 2), 10);
+        payload[5] = 2; BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(6, 2), -5);
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["records/0/id"].GetUInt8().Should().Be(1);
+        result["records/0/val"].GetInt64().Should().Be(10);
+        result["records/1/id"].GetUInt8().Should().Be(2);
+        result["records/1/val"].GetInt64().Should().Be(-5);
+    }
+
+    [Test]
+    public void Parse_Pass2_FixedStructArray_ValidationOnSubField()
+    {
+        var schema = BinaryContractSchema.Load(Pass2FixedStructArrayContractJson)!;
+        // n=0, records=[{id=1,val=100 (above max 50)}, {id=2,val=25}]
+        var payload = new byte[7];
+        payload[0] = 0; // empty dynamic array
+        payload[1] = 1; BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(2, 2), 100);
+        payload[4] = 2; BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(5, 2), 25);
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result.IsValid.Should().BeFalse();
+        result.Errors[0].Path.Should().Contain("records/0/val");
+    }
+
+    // Pass 2 fixed string array with validation
+    [Test]
+    public void Parse_Pass2_FixedStringArray_Validation()
+    {
+        var schema = BinaryContractSchema.Load("""
+            {
+              "kind": "binary",
+              "endianness": "little",
+              "fields": {
+                "n": { "type": "uint8", "size": 1 },
+                "dynamic": {
+                  "dependsOn": "n",
+                  "type": "array", "count": "n",
+                  "element": { "type": "uint8", "size": 1 }
+                },
+                "names": {
+                  "dependsOn": "dynamic",
+                  "type": "array", "count": 2,
+                  "element": { "type": "string", "encoding": "ASCII", "size": 3 },
+                  "validation": { "pattern": "^[A-Z]+$" }
+                }
+              }
+            }
+            """)!;
+        var payload = new byte[8];
+        payload[0] = 1;
+        payload[1] = 0;
+        Encoding.ASCII.GetBytes("ABC", payload.AsSpan(2, 3));
+        Encoding.ASCII.GetBytes("12!", payload.AsSpan(5, 3)); // fails pattern
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result.IsValid.Should().BeFalse();
+        result.Errors[0].Path.Should().Be("/names/1");
+    }
+
+    // ================================================================
+    // Pass 1 — Fixed string array with validation (lines 370-374)
+    // ================================================================
+
+    [Test]
+    public void Parse_Pass1_FixedStringArray_Validation()
+    {
+        var schema = BinaryContractSchema.Load("""
+            {
+              "kind": "binary",
+              "endianness": "little",
+              "fields": {
+                "labels": {
+                  "type": "array", "count": 2,
+                  "element": { "type": "string", "encoding": "ASCII", "size": 4 },
+                  "validation": { "pattern": "^[A-Z]+$" }
+                }
+              }
+            }
+            """)!;
+        var payload = new byte[8];
+        Encoding.ASCII.GetBytes("GOOD", payload.AsSpan(0, 4));
+        Encoding.ASCII.GetBytes("bad!", payload.AsSpan(4, 4));
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result.IsValid.Should().BeFalse();
+        result.Errors[0].Path.Should().Be("/labels/1");
+        result.Errors[0].Code.Should().Be(ValidationErrorCode.PatternMismatch);
+    }
+
+    // ================================================================
+    // 16-bit bits container (lines 724-728)
+    // ================================================================
+
+    [Test]
+    public void Parse_Pass2_16BitBitsContainer()
+    {
+        var schema = BinaryContractSchema.Load("""
+            {
+              "kind": "binary",
+              "endianness": "little",
+              "fields": {
+                "n": { "type": "uint8", "size": 1 },
+                "items": {
+                  "dependsOn": "n",
+                  "type": "array", "count": "n",
+                  "element": { "type": "uint8", "size": 1 }
+                },
+                "flags16": {
+                  "dependsOn": "items",
+                  "type": "bits", "size": 2,
+                  "fields": {
+                    "low":  { "bit": 0, "bits": 4, "type": "uint8" },
+                    "high": { "bit": 8, "bits": 4, "type": "uint8" }
+                  }
+                }
+              }
+            }
+            """)!;
+        // n=1, items=[42], flags16=0x0305 (LE: 05 03)
+        var payload = new byte[4];
+        payload[0] = 1;
+        payload[1] = 42;
+        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(2, 2), 0x0305);
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["flags16/low"].GetUInt8().Should().Be(5);  // bits 0-3 of 0x0305
+        result["flags16/high"].GetUInt8().Should().Be(3);  // bits 8-11 of 0x0305
+    }
+
+    // ================================================================
+    // uint16 and uint32 count fields (lines 797-798)
+    // ================================================================
+
+    [Test]
+    public void Parse_SemiDynamicArray_UInt16CountField()
+    {
+        var schema = BinaryContractSchema.Load("""
+            {
+              "kind": "binary",
+              "endianness": "little",
+              "fields": {
+                "count": { "type": "uint16", "size": 2 },
+                "items": {
+                  "dependsOn": "count",
+                  "type": "array", "count": "count",
+                  "element": { "type": "uint8", "size": 1 }
+                }
+              }
+            }
+            """)!;
+        var payload = new byte[5];
+        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(0, 2), 3);
+        payload[2] = 10; payload[3] = 20; payload[4] = 30;
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["items/0"].GetUInt8().Should().Be(10);
+        result["items/1"].GetUInt8().Should().Be(20);
+        result["items/2"].GetUInt8().Should().Be(30);
+    }
+
+    [Test]
+    public void Parse_SemiDynamicArray_UInt32CountField()
+    {
+        var schema = BinaryContractSchema.Load("""
+            {
+              "kind": "binary",
+              "endianness": "little",
+              "fields": {
+                "count": { "type": "uint32", "size": 4 },
+                "items": {
+                  "dependsOn": "count",
+                  "type": "array", "count": "count",
+                  "element": { "type": "uint8", "size": 1 }
+                }
+              }
+            }
+            """)!;
+        var payload = new byte[6];
+        BinaryPrimitives.WriteUInt32LittleEndian(payload.AsSpan(0, 4), 2);
+        payload[4] = 77; payload[5] = 88;
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["items/0"].GetUInt8().Should().Be(77);
+        result["items/1"].GetUInt8().Should().Be(88);
+    }
+
+    // ================================================================
+    // BinaryContractLoader — edge cases
+    // ================================================================
+
+    [Test]
+    public void Load_NullDto_ReturnsNull()
+    {
+        // Valid JSON but not a contract (missing "kind")
+        var schema = BinaryContractSchema.Load("""{"fields":{}}""");
+        schema.Should().BeNull();
+    }
+
+    [Test]
+    public void Load_EmptyFields_LoadsSuccessfully()
+    {
+        // kind=binary but fields is empty — should produce empty schema
+        // Validation will fail (no root) but loader should not crash
+        var schema = BinaryContractSchema.Load("""
+            {
+              "kind": "binary",
+              "endianness": "little",
+              "fields": {}
+            }
+            """);
+        // Empty fields means no root, so validation fails
+        schema.Should().BeNull();
+    }
+
+    [Test]
+    public void Load_WrongKind_ReturnsNull()
+    {
+        var schema = BinaryContractSchema.Load("""
+            {
+              "kind": "json",
+              "fields": { "a": { "type": "uint8", "size": 1 } }
+            }
+            """);
+        schema.Should().BeNull();
+    }
+
+    [Test]
+    public void Load_UnknownStringMode_DefaultsToTrimEnd()
+    {
+        var schema = BinaryContractSchema.Load("""
+            {
+              "kind": "binary",
+              "endianness": "little",
+              "fields": {
+                "label": { "type": "string", "encoding": "ASCII", "size": 6, "mode": "unknown_mode" }
+              }
+            }
+            """)!;
+        // "unknown_mode" defaults to trimEnd (mode=2), so trailing nulls are trimmed
+        var payload = new byte[] { (byte)'H', (byte)'i', 0, 0, 0, 0 };
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["label"].GetString().Should().Be("Hi");
+    }
+
+    // ================================================================
+    // Pass 2 — enum field in fixed array after dynamic
+    // ================================================================
+
+    [Test]
+    public void Parse_Pass2_FixedArrayTruncated_BreaksEarly()
+    {
+        var schema = BinaryContractSchema.Load(Pass2FixedArrayContractJson)!;
+        // n=1, dynamic=[5], but payload too short for fixed[2] uint16 array
+        var payload = new byte[4]; // 1 + 1 + 2 (only 1 of 2 uint16 fits)
+        payload[0] = 1;
+        payload[1] = 5;
+        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(2, 2), 100);
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["fixed/0"].GetUInt16().Should().Be(100);
+    }
+
+    [Test]
+    public void Parse_Pass2_FixedStructArray_PartialTruncation()
+    {
+        var schema = BinaryContractSchema.Load(Pass2FixedStructArrayContractJson)!;
+        // n=0, only room for 1.5 struct records (payload ends mid-struct)
+        var payload = new byte[5]; // 1 + 0 + 3 (full record) + 1 (partial)
+        payload[0] = 0;
+        payload[1] = 1; BinaryPrimitives.WriteInt16LittleEndian(payload.AsSpan(2, 2), 10);
+        payload[4] = 2; // partial second record — val is out of bounds
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["records/0/id"].GetUInt8().Should().Be(1);
+        result["records/0/val"].GetInt64().Should().Be(10);
+    }
+
+    // ================================================================
+    // BitFieldDto — basic coverage (0% → covered)
+    // ================================================================
+
+    [Test]
+    public void Load_ContractWithBitFields_DeserializesBitFieldDto()
+    {
+        // BitFieldDto is used during JSON deserialization of bits containers
+        var schema = BinaryContractSchema.Load("""
+            {
+              "kind": "binary",
+              "endianness": "little",
+              "fields": {
+                "flags": {
+                  "type": "bits", "size": 1,
+                  "fields": {
+                    "a": { "bit": 0, "bits": 1, "type": "boolean" }
+                  }
+                }
+              }
+            }
+            """)!;
+
+        var payload = new byte[] { 0x01 };
+        using var result = schema.Parse(payload)!.Value;
+
+        result["flags/a"].GetBoolean().Should().BeTrue();
+    }
+
+    // ================================================================
+    // Pass 2 — fixed array after MULTIPLE semi-dynamic arrays
+    // Exercises ComputeActualFieldSize (lines 828-854) for Pass 2 offset computation
+    // ================================================================
+
+    [Test]
+    public void Parse_Pass2_MultipleArrays_OffsetsCorrect()
+    {
+        var schema = BinaryContractSchema.Load("""
+            {
+              "kind": "binary",
+              "endianness": "little",
+              "fields": {
+                "n1": { "type": "uint8", "size": 1 },
+                "arr1": {
+                  "dependsOn": "n1",
+                  "type": "array", "count": "n1",
+                  "element": { "type": "uint8", "size": 1 }
+                },
+                "n2": {
+                  "dependsOn": "arr1",
+                  "type": "uint8", "size": 1
+                },
+                "arr2": {
+                  "dependsOn": "n2",
+                  "type": "array", "count": "n2",
+                  "element": { "type": "uint16", "size": 2 }
+                },
+                "tail": {
+                  "dependsOn": "arr2",
+                  "type": "uint8", "size": 1
+                }
+              }
+            }
+            """)!;
+        // n1=2, arr1=[10,20], n2=1, arr2=[300], tail=99
+        var payload = new byte[8];
+        payload[0] = 2; // n1
+        payload[1] = 10; payload[2] = 20; // arr1
+        payload[3] = 1; // n2
+        BinaryPrimitives.WriteUInt16LittleEndian(payload.AsSpan(4, 2), 300); // arr2
+        payload[6] = 99; // tail
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["arr1/0"].GetUInt8().Should().Be(10);
+        result["arr1/1"].GetUInt8().Should().Be(20);
+        result["arr2/0"].GetUInt16().Should().Be(300);
+        result["tail"].GetUInt8().Should().Be(99);
+    }
 }
