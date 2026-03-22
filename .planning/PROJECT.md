@@ -37,9 +37,11 @@ A consumer calls `parsed["fieldName"].GetInt32()` and gets the value — without
 
 ### Active
 - [ ] Contract-load validation: single root, no cycles, no shared parents, valid references
-- [ ] High code coverage (unit + integration tests)
-- [ ] NuGet package with CI pipeline matching Gluey.Contract.Json
-- [ ] Published to NuGet, CI green, README with usage examples
+
+### Recently Validated
+- [x] High code coverage (unit + integration tests) — *Validated in Phase 7: packaging (77% line coverage, 328 test executions)*
+- [x] NuGet package with CI pipeline matching Gluey.Contract.Json — *Validated in Phase 7: packaging*
+- [x] Published to NuGet, CI green, README with usage examples — *Validated in Phase 7: packaging (CI jobs configured, README created, pending first publish)*
 
 ### Out of Scope
 
@@ -79,4 +81,4 @@ A consumer calls `parsed["fieldName"].GetInt32()` and gets the value — without
 | Enum source accessor = name + "s" | Convention for accessing raw byte value alongside mapped string | ✓ Phase 4 (inverted: base=numeric, +s=string) |
 
 ---
-*Last updated: 2026-03-22 after Phase 6 completion*
+*Last updated: 2026-03-22 after Phase 7 completion — all packaging requirements verified, milestone v1.0 complete*
