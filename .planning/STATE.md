@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Phase 6 context gathered
-last_updated: "2026-03-21T18:26:27.690Z"
+stopped_at: Completed 06-01-PLAN.md
+last_updated: "2026-03-22T00:15:56.763Z"
 progress:
   total_phases: 7
   completed_phases: 5
-  total_plans: 12
-  completed_plans: 12
+  total_plans: 14
+  completed_plans: 13
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** A consumer calls parsed["fieldName"].GetInt32() and gets the value -- without knowing or caring whether the backing data is JSON or a custom binary protocol.
-**Current focus:** Phase 05 — composite-types
+**Current focus:** Phase 06 — validation
 
 ## Current Position
 
-Phase: 6
-Plan: Not started
+Phase: 06 (validation) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -59,6 +59,7 @@ Plan: Not started
 | Phase 05-composite-types P01 | 2min | 1 tasks | 1 files |
 | Phase 05-composite-types P02 | 2min | 1 tasks | 1 files |
 | Phase 05-composite-types P03 | 4min | 1 tasks | 3 files |
+| Phase 06-validation P01 | 7min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -93,6 +94,9 @@ Recent decisions affecting current work:
 - [Phase 05-composite-types]: Pass 2 duplicates field-type switch for clarity; ComputeActualFieldSize resolves semi-dynamic counts at runtime; 64-ordinal headroom per semi-dynamic array
 - [Phase 05-composite-types]: ReadCountValue dispatches by RawBytes.Length to avoid type-strictness when count field is uint8
 - [Phase 05-composite-types]: Prefix-based path lookup in ParsedProperty indexer scopes struct element child resolution
+- [Phase 06-validation]: GetInt64() for Int8/Int16/Int32 extraction avoids missing GetInt8/GetInt16 methods
+- [Phase 06-validation]: Regex compiled at load time with 100ms timeout for pattern validation
+- [Phase 06-validation]: Replaced missing SchemaRegistry/SchemaOptions with object? to fix pre-existing build error
 
 ### Pending Todos
 
@@ -105,6 +109,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-21T18:26:27.672Z
-Stopped at: Phase 6 context gathered
-Resume file: .planning/phases/06-validation/06-CONTEXT.md
+Last session: 2026-03-22T00:15:56.759Z
+Stopped at: Completed 06-01-PLAN.md
+Resume file: None

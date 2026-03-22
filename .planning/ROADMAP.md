@@ -112,7 +112,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — Create BinaryFieldValidator, add CompiledPattern to contract model, add inline validation in Parse()
+- [x] 06-01-PLAN.md — Create BinaryFieldValidator, add CompiledPattern to contract model, add inline validation in Parse()
 - [ ] 06-02-PLAN.md — End-to-end validation tests covering all 5 requirements
 
 ### Phase 7: Packaging
@@ -142,5 +142,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 3. Scalar Parsing | 2/2 | Complete   | 2026-03-20 |
 | 4. Leaf Types | 3/3 | Complete   | 2026-03-20 |
 | 5. Composite Types | 1/3 | In Progress|  |
-| 6. Validation | 0/2 | Planning complete | - |
+| 6. Validation | 1/2 | In Progress|  |
 | 7. Packaging | 0/? | Not started | - |
