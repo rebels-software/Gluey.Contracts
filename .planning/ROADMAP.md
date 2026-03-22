@@ -125,10 +125,11 @@ Plans:
   3. README contains usage examples covering contract loading, payload parsing, and value access
   4. Code coverage meets project standards with unit and integration tests across all field types
   5. Test project has InternalsVisibleTo access for white-box testing of internal components
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 07-01: TBD
+- [ ] 07-01-PLAN.md — Add NuGet metadata (PackageReadmeFile, PackageIcon), create README, configure CI pipeline jobs
+- [ ] 07-02-PLAN.md — Verify test coverage and InternalsVisibleTo across all feature areas
 
 ## Progress
 
@@ -143,4 +144,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 4. Leaf Types | 3/3 | Complete   | 2026-03-20 |
 | 5. Composite Types | 1/3 | In Progress|  |
 | 6. Validation | 2/2 | Complete   | 2026-03-22 |
-| 7. Packaging | 0/? | Not started | - |
+| 7. Packaging | 0/2 | Planning complete | - |
