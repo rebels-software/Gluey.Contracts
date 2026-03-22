@@ -1294,6 +1294,83 @@ internal sealed class CoverageGapTests
     }
 
     // ================================================================
+    // ParsedProperty — GetUInt32 3-byte LE path (line 466)
+    // ================================================================
+
+    [Test]
+    public void GetUInt32_ThreeBytes_LittleEndian_ReadsCorrectly()
+    {
+        var schema = BinaryContractSchema.Load("""
+            {
+              "kind": "binary",
+              "endianness": "little",
+              "fields": { "v": { "type": "uint32", "size": 3 } }
+            }
+            """)!;
+        var payload = new byte[] { 0x03, 0x02, 0x01 }; // 0x010203 = 66051
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["v"].GetUInt32().Should().Be(66051u);
+    }
+
+    // ================================================================
+    // ParsedProperty — GetInt64 3-byte and 4-byte LE paths (lines 540-542)
+    // ================================================================
+
+    [Test]
+    public void GetInt64_ThreeBytes_LittleEndian_SignExtends()
+    {
+        var schema = BinaryContractSchema.Load("""
+            {
+              "kind": "binary",
+              "endianness": "little",
+              "fields": { "v": { "type": "int32", "size": 3 } }
+            }
+            """)!;
+        // -1 in 3 LE bytes = 0xFF 0xFF 0xFF
+        var payload = new byte[] { 0xFF, 0xFF, 0xFF };
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["v"].GetInt64().Should().Be(-1);
+    }
+
+    [Test]
+    public void GetInt64_FourBytes_LittleEndian_ReadsCorrectly()
+    {
+        var schema = BinaryContractSchema.Load("""
+            {
+              "kind": "binary",
+              "endianness": "little",
+              "fields": { "v": { "type": "int32", "size": 4 } }
+            }
+            """)!;
+        var payload = new byte[4];
+        BinaryPrimitives.WriteInt32LittleEndian(payload, -99999);
+
+        using var result = schema.Parse(payload)!.Value;
+
+        result["v"].GetInt64().Should().Be(-99999);
+    }
+
+    [Test]
+    public void GetInt64_SingleByte_BigEndian_SignExtends()
+    {
+        var schema = BinaryContractSchema.Load("""
+            {
+              "kind": "binary",
+              "endianness": "big",
+              "fields": { "v": { "type": "int8", "size": 1 } }
+            }
+            """)!;
+
+        using var result = schema.Parse(new byte[] { 0x80 })!.Value;
+
+        result["v"].GetInt64().Should().Be(-128);
+    }
+
+    // ================================================================
     // ParsedProperty — GetDouble big-endian float64 (line 586)
     // Already tested above but need explicit LE float32 too
     // ================================================================

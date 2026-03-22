@@ -147,27 +147,6 @@ public readonly struct ParsedProperty
     }
 
     /// <summary>
-    /// Creates a new <see cref="ParsedProperty"/> for binary format leaf/scalar properties.
-    /// </summary>
-    internal ParsedProperty(byte[] buffer, int offset, int length, string path, byte format, byte endianness)
-    {
-        _buffer = buffer;
-        _offset = offset;
-        _length = length;
-        _path = path;
-        _childTable = default;
-        _childOrdinals = null;
-        _directChildren = null;
-        _arrayBuffer = null;
-        _arrayOrdinal = -1;
-        _format = format;
-        _endianness = endianness;
-        _fieldType = 0;
-        _encoding = 0;
-        _enumValues = null;
-    }
-
-    /// <summary>
     /// Creates a new <see cref="ParsedProperty"/> for binary format leaf/scalar properties with field type metadata.
     /// </summary>
     internal ParsedProperty(byte[] buffer, int offset, int length, string path, byte format, byte endianness, byte fieldType)
@@ -228,29 +207,6 @@ public readonly struct ParsedProperty
         _fieldType = fieldType;
         _encoding = 0;
         _enumValues = enumValues;
-    }
-
-    /// <summary>
-    /// Creates a new <see cref="ParsedProperty"/> for binary format properties with child navigation.
-    /// </summary>
-    internal ParsedProperty(byte[] buffer, int offset, int length, string path, byte format, byte endianness,
-        OffsetTable childTable, Dictionary<string, int>? childOrdinals,
-        ArrayBuffer? arrayBuffer, int arrayOrdinal)
-    {
-        _buffer = buffer;
-        _offset = offset;
-        _length = length;
-        _path = path;
-        _childTable = childTable;
-        _childOrdinals = childOrdinals;
-        _directChildren = null;
-        _arrayBuffer = arrayBuffer;
-        _arrayOrdinal = arrayOrdinal;
-        _format = format;
-        _endianness = endianness;
-        _fieldType = 0;
-        _encoding = 0;
-        _enumValues = null;
     }
 
     /// <summary>
