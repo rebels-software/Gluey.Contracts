@@ -31,11 +31,12 @@ A consumer calls `parsed["fieldName"].GetInt32()` and gets the value — without
 - [x] Struct elements inside arrays with scoped dependency chains — *Validated in Phase 5: composite-types*
 - [x] Path-based access: `parsed["recentErrors/0/code"]` matching JSON Pointer style — *Validated in Phase 5: composite-types*
 
+- [x] Validation: min/max for numerics, pattern/minLength/maxLength for strings — *Validated in Phase 6: validation*
+- [x] Multi-error collection: all validation errors collected (not fail-fast) and accessible on ParseResult — *Validated in Phase 6: validation*
+- [x] Invalid values remain accessible after validation failure — *Validated in Phase 6: validation*
+
 ### Active
-- [ ] Validation: min/max for numerics, pattern/minLength/maxLength for strings
 - [ ] Contract-load validation: single root, no cycles, no shared parents, valid references
-- [ ] Payload too short returns null (structurally invalid)
-- [ ] Zero-allocation parse path (ArrayPool, same patterns as JSON package)
 - [ ] High code coverage (unit + integration tests)
 - [ ] NuGet package with CI pipeline matching Gluey.Contract.Json
 - [ ] Published to NuGet, CI green, README with usage examples
@@ -78,4 +79,4 @@ A consumer calls `parsed["fieldName"].GetInt32()` and gets the value — without
 | Enum source accessor = name + "s" | Convention for accessing raw byte value alongside mapped string | ✓ Phase 4 (inverted: base=numeric, +s=string) |
 
 ---
-*Last updated: 2026-03-21 after Phase 5 completion*
+*Last updated: 2026-03-22 after Phase 6 completion*
